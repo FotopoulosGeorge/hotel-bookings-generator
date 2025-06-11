@@ -1,0 +1,32 @@
+# Hotel Booking Data Generator Requirements
+# Core data manipulation and analysis
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Visualization and plotting
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# For date/time handling (included in standard library but ensuring compatibility)
+python-dateutil>=2.8.0
+
+# Optional: For enhanced data analysis
+scipy>=1.9.0
+scikit-learn>=1.1.0
+
+# Optional: For Jupyter notebook support
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Optional: For enhanced plotting
+plotly>=5.0.0
+
+# Development and testing (optional)
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0
+
+# Note: pickle is part of Python standard library
+# Note: datetime is part of Python standard library
+# Note: random is part of Python standard library
+# Note: warnings is part of Python standard library
