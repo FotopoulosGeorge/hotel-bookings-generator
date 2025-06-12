@@ -474,7 +474,24 @@ class ConfigurableHotelBookingGenerator:
                                              min(base_stay_date.day, 31))
             else:
                 stay_start_date = base_stay_date
+
+        # Ensure stay is within operational months
+        if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
+            # Adjust to nearest operational month
+            if stay_start_date.month < 5:
+                stay_start_date = stay_start_date.replace(month=random.randint(5,9), day=random.randint(1,30))
+            elif stay_start_date.month > 9:
+                stay_start_date = stay_start_date.replace(month=random.randint(5,9), day=random.randint(1,30))
         
+        if stay_start_date <= booking_date:
+        # Push stay date to at least 1 day after booking
+            stay_start_date = booking_date + timedelta(days=random.randint(1, 30))
+        
+        # Re-validate operational months    
+        if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
+            # Find next operational month
+            target_month = 5 if stay_start_date.month < 5 else 9
+            stay_start_date = stay_start_date.replace(month=target_month, day=1)
         stay_end_date = stay_start_date + timedelta(days=int(stay_length))
         return stay_start_date, stay_end_date, stay_length
     

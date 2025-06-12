@@ -322,13 +322,17 @@ def check_data_quality_for_ml(bookings_df, campaigns_df, customers_df):
     
     # Check for missing values
     missing_values = bookings_df.isnull().sum()
-    critical_missing = missing_values[missing_values > 0]
+    expected_missing_cols = ['campaign_id', 'cancellation_date']
+    critical_missing = missing_values[
+        (missing_values > 0) & 
+        (~missing_values.index.isin(expected_missing_cols))
+    ]
     if not critical_missing.empty:
         print(f"⚠️ Missing Values Found:")
         for col, count in critical_missing.items():
             percentage = (count / len(bookings_df)) * 100
             print(f"   {col}: {count:,} ({percentage:.1f}%)")
-            if percentage > 5:
+            if col not in ['campaign_id', 'cancellation_date'] and percentage > 5:
                 ml_score -= 10
                 issues.append(f"High missing values in {col}")
     else:
@@ -376,7 +380,10 @@ def check_data_quality_for_ml(bookings_df, campaigns_df, customers_df):
         print(f"   ✅ Price range: ${min_price:.2f} - ${max_price:.2f}")
     
     # Attribution scores
-    attribution_scores = bookings_df[bookings_df['campaign_id'].notna()]['attribution_score']
+    attribution_scores = bookings_df[
+        (bookings_df['campaign_id'].notna()) & 
+        (bookings_df['attribution_score'].notna())
+    ]['attribution_score']
     if not attribution_scores.empty:
         invalid_attribution = ((attribution_scores < 0) | (attribution_scores > 1)).sum()
         if invalid_attribution > 0:
@@ -502,7 +509,7 @@ def run_comprehensive_analysis(data_prefix=''):
         # Save comprehensive analysis report
         report_filename = f"{data_prefix}comprehensive_analysis_report.txt" if data_prefix else "comprehensive_analysis_report.txt"
         
-        with open(report_filename, 'w') as f:
+        with open(report_filename, 'w', encoding='utf-8') as f:
             f.write(f"COMPREHENSIVE HOTEL BOOKING DATA ANALYSIS REPORT\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Data prefix: {data_prefix if data_prefix else 'standard'}\n")

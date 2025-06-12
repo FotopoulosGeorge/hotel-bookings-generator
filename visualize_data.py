@@ -921,7 +921,7 @@ class HotelDataVisualizer:
         </html>
         """
         
-        with open(f'{self.output_dir}visualization_index.html', 'w') as f:
+        with open(f'{self.output_dir}visualization_index.html', 'w', encoding='utf-8') as f:
             f.write(html_content)
 
 
