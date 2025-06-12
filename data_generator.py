@@ -127,7 +127,7 @@ class ConfigurableHotelBookingGenerator:
         baseline_demand = {}
         
         for year in self.config.SIMULATION_YEARS:
-            for month in self.config.OPERATIONAL_MONTHS:
+            for month in range(1, 13):
                 try:
                     days_in_month = (datetime(year, month + 1, 1) - datetime(year, month, 1)).days if month < 12 else 31
                 except ValueError:

@@ -89,11 +89,18 @@ class HotelBusinessConfig:
     
     # 📈 SEASONAL DEMAND PATTERNS (relative to peak)
     SEASONAL_DEMAND_MULTIPLIERS = {
+        1: 0.40,  # January - low booking activity
+        2: 0.45,  # February - low booking activity  
+        3: 0.60,  # March - spring planning starts
+        4: 0.75,  # April - pre-season booking rush
         5: 0.70,  # May - shoulder season
         6: 0.80,  # June - building to peak  
         7: 1.00,  # July - PEAK season
         8: 1.00,  # August - PEAK season
-        9: 0.70   # September - shoulder season
+        9: 0.70,  # September - shoulder season
+        10: 0.55, # October - post-season planning
+        11: 0.85, # November - early booking campaigns
+        12: 0.80  # December - holiday season planning
     }
     
     # 📅 WEEKLY DEMAND PATTERNS (Monday=0, Sunday=6)
