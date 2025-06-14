@@ -128,10 +128,10 @@ class ConfigurableHotelBookingGenerator:
         
         for year in self.config.SIMULATION_YEARS:
             for month in range(1, 13):
-                try:
-                    days_in_month = (datetime(year, month + 1, 1) - datetime(year, month, 1)).days if month < 12 else 31
-                except ValueError:
-                    days_in_month = 30
+                if month == 12:
+                    days_in_month = 31
+                else:
+                    days_in_month = (datetime(year, month + 1, 1) - datetime(year, month, 1)).days
                     
                 for day in range(1, days_in_month + 1):
                     try:
@@ -459,9 +459,11 @@ class ConfigurableHotelBookingGenerator:
                     
             except ValueError:
                 stay_start_date = month_start
+
+
         else:
             # Regular booking logic
-            max_advance = min(customer['planning_horizon'], 300)
+            max_advance = min(customer['planning_horizon'], 180)
             base_stay_date = booking_date + timedelta(days=random.randint(1, max_advance))
             
             # Apply seasonal bias to reduce September clustering
@@ -475,6 +477,10 @@ class ConfigurableHotelBookingGenerator:
             else:
                 stay_start_date = base_stay_date
 
+            if stay_start_date <= booking_date:
+                # Push stay date to at least 1 day after booking
+                stay_start_date = booking_date + timedelta(days=random.randint(1, 30))
+
         # Ensure stay is within operational months
         if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
             # Adjust to nearest operational month
@@ -483,15 +489,6 @@ class ConfigurableHotelBookingGenerator:
             elif stay_start_date.month > 9:
                 stay_start_date = stay_start_date.replace(month=random.randint(5,9), day=random.randint(1,30))
         
-        if stay_start_date <= booking_date:
-        # Push stay date to at least 1 day after booking
-            stay_start_date = booking_date + timedelta(days=random.randint(1, 30))
-        
-        # Re-validate operational months    
-        if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
-            # Find next operational month
-            target_month = 5 if stay_start_date.month < 5 else 9
-            stay_start_date = stay_start_date.replace(month=target_month, day=1)
         stay_end_date = stay_start_date + timedelta(days=int(stay_length))
         return stay_start_date, stay_end_date, stay_length
     
@@ -527,6 +524,8 @@ class ConfigurableHotelBookingGenerator:
         total_bookings_generated = 0
         
         for date, base_demand in baseline_demand.items():
+            if date.year > max(self.config.SIMULATION_YEARS):
+                 continue
             # Apply configured external shocks
             if random.random() < self.config.DATA_CONFIG['external_shock_probability']:
                 shock_factor = random.uniform(*self.config.DATA_CONFIG['shock_impact_range'])
@@ -607,6 +606,14 @@ class ConfigurableHotelBookingGenerator:
                 seasonal_multiplier = self.config.DATA_CONFIG['seasonal_pricing_multipliers'].get(date.month, 1.0)
                 base_price *= seasonal_multiplier
                 
+                segment_pricing_multipliers = {
+                    'Early_Planner': 0.95,    # 5% discount for advance booking
+                    'Last_Minute': 1.10,      # 10% premium for last-minute
+                    'Flexible': 1.00          # Standard pricing
+                }
+                segment_multiplier = segment_pricing_multipliers.get(customer['segment'], 1.0)
+                base_price *= segment_multiplier
+
                 # Generate stay dates
                 stay_start_date, stay_end_date, stay_length = self.generate_stay_dates(
                     date, customer, selected_campaign
