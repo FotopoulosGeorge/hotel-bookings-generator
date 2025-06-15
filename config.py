@@ -16,6 +16,16 @@ class HotelBusinessConfig:
     SIMULATION_YEARS = [2022, 2023, 2024]  # Years to generate data for
     ROOM_TYPES = ['Standard', 'Deluxe', 'Suite', 'Premium']
     
+    
+    INVENTORY_CONFIG = {
+        'base_capacity_per_room_type': {
+            'Standard': 50,
+            'Deluxe': 30,
+            'Suite': 15, 
+            'Premium': 10
+    }
+}
+
     # 💰 PERIODIC BASE PRICING CONFIGURATION
     PERIODIC_BASE_PRICING = {
         'enabled': True,  # Set to False to use static BASE_PRICES
@@ -94,7 +104,7 @@ class HotelBusinessConfig:
         3: 0.60,  # March - spring planning starts
         4: 0.75,  # April - pre-season booking rush
         5: 0.70,  # May - shoulder season
-        6: 0.80,  # June - building to peak  
+        6: 0.85,  # June - building to peak  
         7: 1.00,  # July - PEAK season
         8: 1.00,  # August - PEAK season
         9: 0.70,  # September - shoulder season
@@ -125,7 +135,7 @@ class HotelBusinessConfig:
     CUSTOMER_SEGMENTS = {
         'Early_Planner': {
             'market_share': 0.45,
-            'advance_booking_days': (120, 240),
+            'advance_booking_days': (60, 150),
             'price_sensitivity': 0.8,
             'channel_preference_weights': {
                 'Connected_Agent': 0.85,
@@ -149,7 +159,7 @@ class HotelBusinessConfig:
         },
         'Flexible': {
             'market_share': 0.30,
-            'advance_booking_days': (30, 120),
+            'advance_booking_days': (14, 90),
             'price_sensitivity': 0.7,
             'channel_preference_weights': {
                 'Connected_Agent': 0.55,

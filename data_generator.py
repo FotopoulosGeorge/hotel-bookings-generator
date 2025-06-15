@@ -1,8 +1,8 @@
 """
-Hotel Booking Data Generator
+Hotel Booking Data Generator - Improved Version
 
-Main data generation logic for creating realistic hotel booking datasets
-with campaigns, customer behavior, cancellations, and overbooking.
+Enhanced data generation logic for creating realistic hotel booking datasets
+with improved pricing, attribution, overbooking, and date consistency.
 """
 
 import pandas as pd
@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import pickle
 import random
 import warnings
+from collections import defaultdict
 from config import HotelBusinessConfig
 
 warnings.filterwarnings('ignore')
@@ -26,6 +27,9 @@ class ConfigurableHotelBookingGenerator:
         self.campaign_counter = 1000
         self.booking_counter = 10000  
         self.customer_counter = 1000
+        
+        # Initialize inventory tracking
+        self.inventory_tracker = InventoryTracker(self.config)
         
         # Set random seed for reproducibility
         np.random.seed(42)
@@ -187,7 +191,7 @@ class ConfigurableHotelBookingGenerator:
                     p=np.array(list(segment_config['loyalty_distribution'].values())) /
                       sum(segment_config['loyalty_distribution'].values())
                 ),
-                'campaign_fatigue': 0,
+                'campaign_exposures': [],  # Track campaign exposures for attribution
                 'booking_history': []
             }
             customers.append(customer)
@@ -196,7 +200,7 @@ class ConfigurableHotelBookingGenerator:
         return customers
     
     def get_base_price_for_date(self, date, room_type):
-        """Get base price for a specific date and room type using periodic pricing"""
+        """Get base price for a specific date and room type using ONLY periodic pricing"""
         if not self.config.PERIODIC_BASE_PRICING['enabled']:
             return self.config.BASE_PRICES[room_type]
         
@@ -217,9 +221,286 @@ class ConfigurableHotelBookingGenerator:
             if start_date <= date <= end_date:
                 return period['base_price']
         
-        # Fallback to static pricing if no period found
-        print(f"⚠️ No pricing period found for {room_type} on {date}, using static pricing")
+        # Handle missing periods by finding the most recent period and extrapolating
+        if pricing_periods:
+            # Sort periods by end date
+            sorted_periods = sorted(pricing_periods, key=lambda p: p['end_date'])
+            latest_period = sorted_periods[-1]
+            
+            # If the date is after our latest period, use the latest period's price
+            latest_end = datetime.strptime(latest_period['end_date'], '%Y-%m-%d').date()
+            if date > latest_end:
+                return latest_period['base_price']
+            
+            # If date is before our earliest period, use the earliest period's price
+            earliest_period = sorted_periods[0]
+            earliest_start = datetime.strptime(earliest_period['start_date'], '%Y-%m-%d').date()
+            if date < earliest_start:
+                return earliest_period['base_price']
+        
+        # Final fallback to static pricing
         return self.config.BASE_PRICES[room_type]
+    
+    def calculate_improved_attribution_score(self, booking_date, campaign, customer):
+        """
+        Improved attribution model using time-decay and campaign-specific logic
+        
+        Returns: (attribution_score, is_incremental)
+        """
+        if not campaign:
+            return 0.0, False
+        
+        # Campaign-specific attribution parameters
+        attribution_params = {
+            'Early_Booking': {
+                'peak_attribution': 0.8,
+                'decay_rate': 0.02,  # Slow decay for long-term campaigns
+                'min_attribution': 0.3,
+                'incremental_threshold': 0.4
+            },
+            'Flash_Sale': {
+                'peak_attribution': 0.9,
+                'decay_rate': 0.15,  # Fast decay for urgency
+                'min_attribution': 0.1,
+                'incremental_threshold': 0.6
+            },
+            'Special_Offer': {
+                'peak_attribution': 0.7,
+                'decay_rate': 0.05,  # Medium decay
+                'min_attribution': 0.2,
+                'incremental_threshold': 0.5
+            }
+        }
+        
+        params = attribution_params.get(campaign['campaign_type'], attribution_params['Special_Offer'])
+        
+        # Calculate time since campaign start
+        days_since_start = (booking_date - campaign['start_date']).days
+        
+        # Time-decay attribution
+        time_decay_factor = np.exp(-params['decay_rate'] * days_since_start)
+        base_attribution = params['peak_attribution'] * time_decay_factor
+        base_attribution = max(params['min_attribution'], base_attribution)
+        
+        # Segment matching bonus
+        segment_bonus = 1.0
+        if customer['segment'] in campaign.get('target_segments', []):
+            segment_bonus = 1.3
+        else:
+            segment_bonus = 0.7
+        
+        # Channel alignment bonus
+        channel_bonus = 1.0
+        if campaign['channel'] == 'Mixed' or campaign['channel'] == customer['channel_preference']:
+            channel_bonus = 1.1
+        else:
+            channel_bonus = 0.9
+        
+        # Customer fatigue penalty (based on recent campaign exposures)
+        fatigue_factor = 1.0
+        recent_exposures = [exp for exp in customer['campaign_exposures'] 
+                          if (booking_date - exp['exposure_date']).days <= 30]
+        if len(recent_exposures) > 0:
+            fatigue_factor = max(0.3, 1.0 - (len(recent_exposures) * 0.1))
+        
+        # Final attribution score
+        final_attribution = base_attribution * segment_bonus * channel_bonus * fatigue_factor
+        final_attribution = max(0.0, min(1.0, final_attribution))
+        
+        # Determine incrementality
+        is_incremental = final_attribution > params['incremental_threshold']
+        
+        return final_attribution, is_incremental
+    
+    def generate_robust_stay_dates(self, booking_date, customer, selected_campaign):
+        """
+        Robust stay date generation with proper validation and hierarchy
+        
+        Priority order:
+        1. Ensure stay is after booking
+        2. Respect customer planning horizon
+        3. Apply campaign-specific logic
+        4. Ensure operational season compliance
+        5. Validate stay length feasibility
+        """
+        stay_config = self.config.DATA_CONFIG['stay_length_distribution']
+        stay_weights = np.array(list(stay_config.values()))
+        stay_weights_normalized = stay_weights / stay_weights.sum()
+        
+        stay_length = np.random.choice(
+            list(stay_config.keys()),
+            p=stay_weights_normalized
+        )
+        
+        # 1. Calculate latest possible booking start (respecting planning horizon)
+        max_advance_days = min(customer['planning_horizon'], 365)
+        latest_start = booking_date + timedelta(days=max_advance_days)
+        
+        # 2. Campaign-specific stay date logic
+        if selected_campaign and selected_campaign['campaign_type'] == 'Early_Booking':
+            # Early booking campaigns target operational season only
+            current_year = booking_date.year
+            
+            # Determine target operational season year
+            if booking_date.month <= 4:  # Booking in Jan-Apr targets same year season
+                target_year = current_year
+            else:  # Booking later targets next year season  
+                target_year = current_year + 1
+            
+            # Use configured seasonal weights but constrain to operational months
+            eb_config = self.config.CAMPAIGN_TYPES['Early_Booking']
+            seasonal_weights = eb_config['seasonal_stay_weights']
+            
+            # Filter weights to only include operational months
+            operational_weights = {month: weight for month, weight in seasonal_weights.items() 
+                                 if month in self.config.OPERATIONAL_MONTHS}
+            
+            if operational_weights:
+                weights_array = np.array(list(operational_weights.values()))
+                weights_normalized = weights_array / weights_array.sum()
+                
+                selected_month = np.random.choice(
+                    list(operational_weights.keys()),
+                    p=weights_normalized
+                )
+            else:
+                # Fallback to random operational month
+                selected_month = random.choice(self.config.OPERATIONAL_MONTHS)
+            
+            # Generate stay start in selected month
+            try:
+                month_start = datetime(target_year, selected_month, 1)
+                if selected_month == 9:
+                    month_end = datetime(target_year, selected_month, 30)
+                else:
+                    # Use 30 as safe end day for all months
+                    month_end = datetime(target_year, selected_month, 30)
+                
+                # Ensure stay can fit in the month
+                max_start_in_month = month_end - timedelta(days=int(stay_length))
+                if max_start_in_month >= month_start:
+                    days_available = (max_start_in_month - month_start).days
+                    stay_start_date = month_start + timedelta(days=random.randint(0, max(0, days_available)))
+                else:
+                    stay_start_date = month_start
+                    
+            except ValueError:
+                # Fallback to start of operational season
+                stay_start_date = datetime(target_year, min(self.config.OPERATIONAL_MONTHS), 1)
+        
+        else:
+            # Regular booking logic - constrain to operational season from the start
+            min_advance_days = 1
+            max_advance_days = min(customer['planning_horizon'], 180)
+            
+            # Generate multiple candidate dates and pick the first one in operational season
+            max_attempts = 10
+            stay_start_date = None
+            
+            for attempt in range(max_attempts):
+                advance_days = random.randint(min_advance_days, max_advance_days)
+                candidate_date = booking_date + timedelta(days=advance_days)
+                
+                # If candidate is in operational season, use it
+                if candidate_date.month in self.config.OPERATIONAL_MONTHS:
+                    stay_start_date = candidate_date
+                    break
+            
+            # If no candidate found in operational season, force one
+            if stay_start_date is None:
+                # Pick random operational month in reasonable timeframe
+                target_year = booking_date.year
+                
+                # If booking is late in year, target next year's season
+                if booking_date.month >= 10:
+                    target_year += 1
+                # If booking is early but would land before operational season
+                elif booking_date.month < min(self.config.OPERATIONAL_MONTHS):
+                    pass  # Use current year
+                else:
+                    # Booking during operational season or just after
+                    target_year += 1
+                
+                target_month = random.choice(self.config.OPERATIONAL_MONTHS)
+                target_day = random.randint(1, 28)
+                stay_start_date = datetime(target_year, target_month, target_day)
+        
+        # 3. MANDATORY OPERATIONAL SEASON ENFORCEMENT
+        # This section runs regardless of campaign type to ensure ALL stays are in operational season
+        
+        # Ensure stay start is after booking date
+        if stay_start_date <= booking_date:
+            stay_start_date = booking_date + timedelta(days=random.randint(1, 7))
+        
+        # FORCE stay into operational season if it's not already
+        if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
+            # Determine which operational year to target
+            current_year = stay_start_date.year
+            
+            # If booking is late in year, target next year's season
+            if booking_date.month >= 10:
+                target_year = current_year + 1
+            # If booking is early in year but stay would be before season, target current year
+            elif stay_start_date.month < min(self.config.OPERATIONAL_MONTHS):
+                target_year = current_year
+            # If stay is after season, target next year
+            else:
+                target_year = current_year + 1
+            
+            # Pick a random operational month and day
+            target_month = random.choice(self.config.OPERATIONAL_MONTHS)
+            target_day = random.randint(1, 28)  # Safe day for all months
+            
+            try:
+                forced_stay_date = datetime(target_year, target_month, target_day)
+                
+                # Ensure the forced date is reasonable (not too far from booking)
+                days_ahead = (forced_stay_date - booking_date).days
+                max_reasonable_advance = min(customer['planning_horizon'], 365)
+                
+                if 1 <= days_ahead <= max_reasonable_advance:
+                    stay_start_date = forced_stay_date
+                else:
+                    # If too far, pick a closer operational date
+                    if days_ahead > max_reasonable_advance:
+                        # Try current year operational season
+                        if current_year == booking_date.year:
+                            closer_date = datetime(current_year, target_month, target_day)
+                            if (closer_date - booking_date).days >= 1:
+                                stay_start_date = closer_date
+                    else:
+                        # If negative days, ensure it's at least 1 day ahead
+                        stay_start_date = booking_date + timedelta(days=random.randint(1, 30))
+                        # Re-force into operational season
+                        if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
+                            operational_start = datetime(stay_start_date.year, min(self.config.OPERATIONAL_MONTHS), 1)
+                            stay_start_date = operational_start + timedelta(days=random.randint(0, 60))
+                            
+            except ValueError:
+                # Fallback - force to start of operational season
+                operational_start = datetime(current_year, min(self.config.OPERATIONAL_MONTHS), 1)
+                stay_start_date = operational_start + timedelta(days=random.randint(0, 30))
+        
+        # Calculate stay end date
+        stay_end_date = stay_start_date + timedelta(days=int(stay_length))
+        
+        # Ensure stay doesn't extend beyond operational season
+        if stay_end_date.month > max(self.config.OPERATIONAL_MONTHS):
+            # Truncate stay to end of operational season
+            season_end = datetime(stay_start_date.year, max(self.config.OPERATIONAL_MONTHS), 30)
+            if season_end > stay_start_date:
+                adjusted_length = (season_end - stay_start_date).days
+                stay_length = max(1, min(stay_length, adjusted_length))
+                stay_end_date = stay_start_date + timedelta(days=int(stay_length))
+        
+        # Final validation - if we still have issues, force a valid date
+        if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
+            # Emergency fallback - force to May of appropriate year
+            target_year = stay_start_date.year if stay_start_date.month < 5 else stay_start_date.year + 1
+            stay_start_date = datetime(target_year, 5, random.randint(1, 28))
+            stay_end_date = stay_start_date + timedelta(days=int(stay_length))
+            
+        return stay_start_date, stay_end_date, stay_length
     
     def apply_cancellation_logic(self, bookings):
         """Apply cancellation modeling to existing bookings"""
@@ -281,219 +562,8 @@ class ConfigurableHotelBookingGenerator:
         print(f"✅ Applied cancellations: {cancelled_count:,} bookings cancelled ({cancelled_count/len(bookings):.1%})")
         return bookings
     
-    def generate_overbooked_bookings(self, original_bookings):
-        """Generate additional overbooked bookings based on configuration"""
-        if not self.config.OVERBOOKING_CONFIG['enable_overbooking']:
-            print("📋 Overbooking disabled - skipping")
-            return []
-        
-        print("📋 Generating overbooked bookings...")
-        
-        overbooked_bookings = []
-        
-        # Group bookings by stay date to apply overbooking logic
-        bookings_by_date = {}
-        for booking in original_bookings:
-            stay_date = booking['stay_start_date']
-            if stay_date not in bookings_by_date:
-                bookings_by_date[stay_date] = []
-            bookings_by_date[stay_date].append(booking)
-        
-        # Apply overbooking for each stay date
-        for stay_date, date_bookings in bookings_by_date.items():
-            if len(date_bookings) == 0:
-                continue
-                
-            month = stay_date.month
-            if month not in [5, 6, 7, 8, 9]:
-                continue
-            
-            # Calculate overbooking rate for this date
-            base_rate = self.config.OVERBOOKING_CONFIG['base_overbooking_rate']
-            seasonal_multiplier = self.config.OVERBOOKING_CONFIG['seasonal_overbooking_multipliers'].get(month, 1.0)
-            
-            # Calculate target number of overbooked rooms
-            current_bookings = len([b for b in date_bookings if not b.get('is_cancelled', False)])
-            target_overbooked = int(current_bookings * base_rate * seasonal_multiplier)
-            
-            if target_overbooked == 0:
-                continue
-            
-            # Generate overbooked bookings by duplicating patterns from existing bookings
-            for _ in range(target_overbooked):
-                template_booking = random.choice(date_bookings)
-                
-                overbooked_booking = template_booking.copy()
-                overbooked_booking['booking_id'] = f'BK_{self.booking_counter}'
-                overbooked_booking['customer_id'] = f'CUST_{self.customer_counter}'
-                overbooked_booking['is_overbooked'] = True
-                overbooked_booking['is_cancelled'] = False
-                overbooked_booking['cancellation_date'] = None
-                
-                # Adjust booking date to be closer to stay date
-                days_before_stay = random.randint(1, 14)
-                overbooked_booking['booking_date'] = stay_date - timedelta(days=days_before_stay)
-                
-                # Apply channel-specific adjustments
-                channel = overbooked_booking['booking_channel']
-                channel_multiplier = self.config.OVERBOOKING_CONFIG['channel_overbooking_rates'].get(channel, 1.0)
-                
-                # Apply campaign-specific adjustments if applicable
-                if overbooked_booking['campaign_id']:
-                    campaign_type = overbooked_booking['campaign_id'].split('_')[0]
-                    campaign_type_map = {'EB': 'Early_Booking', 'FS': 'Flash_Sale', 'SO': 'Special_Offer'}
-                    campaign_type_full = campaign_type_map.get(campaign_type, 'Special_Offer')
-                    campaign_multiplier = self.config.OVERBOOKING_CONFIG['campaign_overbooking_adjustment'].get(campaign_type_full, 1.0)
-                    
-                    overbooked_booking['attribution_score'] *= campaign_multiplier
-                
-                overbooked_bookings.append(overbooked_booking)
-                self.booking_counter += 1
-                self.customer_counter += 1
-        
-        print(f"✅ Generated {len(overbooked_bookings):,} overbooked bookings")
-        return overbooked_bookings
-    
-    def calculate_attribution_score(self, booking, campaigns, customer):
-        """Calculate attribution score using configured parameters"""
-        if booking['campaign_id'] is None:
-            return 0.0, None
-        
-        campaign = next((c for c in campaigns if c['campaign_id'] == booking['campaign_id']), None)
-        if not campaign:
-            return 0.0, None
-        
-        attr_config = self.config.ATTRIBUTION_CONFIG
-        base_score = attr_config['base_attribution_score']
-        
-        # Campaign type specific logic
-        if campaign['campaign_type'] == 'Early_Booking':
-            days_since_start = (booking['booking_date'] - campaign['start_date']).days
-            for threshold, factor in attr_config['temporal_decay'].items():
-                if days_since_start <= threshold:
-                    base_score *= factor
-                    break
-        
-        elif campaign['campaign_type'] == 'Flash_Sale':
-            days_since_start = (booking['booking_date'] - campaign['start_date']).days
-            urgency_config = self.config.CAMPAIGN_TYPES['Flash_Sale']['urgency_decay']
-            urgency_factor = urgency_config.get(days_since_start, 0.3)
-            base_score *= urgency_factor
-        
-        # Segment matching
-        if customer['segment'] in campaign.get('target_segments', []):
-            base_score *= attr_config['segment_match_boost']
-        else:
-            base_score *= attr_config['segment_mismatch_penalty']
-        
-        # Channel alignment
-        if (campaign['channel'] == customer['channel_preference'] or campaign['channel'] == 'Mixed'):
-            base_score *= attr_config['channel_alignment_boost']
-        
-        # Customer fatigue
-        fatigue_penalty = customer['campaign_fatigue'] * attr_config['fatigue_penalty_per_exposure']
-        fatigue_factor = max(attr_config['min_fatigue_factor'], 1 - fatigue_penalty)
-        base_score *= fatigue_factor
-        
-        # Add realistic model uncertainty
-        model_uncertainty = np.random.normal(0, attr_config['model_uncertainty_std'])
-        noisy_score = base_score + model_uncertainty
-        
-        # Occasional significant errors
-        if random.random() < attr_config['high_error_probability']:
-            error_factor = random.uniform(*attr_config['high_error_range'])
-            noisy_score *= error_factor
-        
-        attribution_score = max(0.0, min(1.0, noisy_score))
-        
-        # Determine incrementality
-        cannibalization_threshold = random.uniform(*attr_config['cannibalization_threshold_range'])
-        is_incremental = attribution_score > cannibalization_threshold
-        
-        return attribution_score, is_incremental
-    
-    def generate_stay_dates(self, booking_date, customer, selected_campaign):
-        """Generate stay dates using configuration"""
-        stay_config = self.config.DATA_CONFIG['stay_length_distribution']
-        stay_weights = np.array(list(stay_config.values()))
-        stay_weights_normalized = stay_weights / stay_weights.sum()
-        
-        stay_length = np.random.choice(
-            list(stay_config.keys()),
-            p=stay_weights_normalized
-        )
-        
-        if selected_campaign and selected_campaign['campaign_type'] == 'Early_Booking':
-            # Use configured seasonal weights for early booking stays
-            eb_config = self.config.CAMPAIGN_TYPES['Early_Booking']
-            
-            if booking_date.month <= 4:
-                season_start = datetime(booking_date.year, 5, 1)
-            else:
-                season_start = datetime(booking_date.year + 1, 5, 1)
-            
-            # Select month based on configured weights
-            seasonal_weights = eb_config['seasonal_stay_weights']
-            weights_array = np.array(list(seasonal_weights.values()))
-            weights_normalized = weights_array / weights_array.sum()
-            
-            selected_month = np.random.choice(
-                list(seasonal_weights.keys()),
-                p=weights_normalized
-            )
-            
-            month_start = datetime(season_start.year, selected_month, 1)
-            try:
-                if selected_month == 9:
-                    month_end = datetime(season_start.year, selected_month, 30)
-                else:
-                    month_end = datetime(season_start.year, selected_month + 1, 1) - timedelta(days=1)
-                
-                max_start_date = month_end - timedelta(days=int(stay_length))
-                days_available = max(0, (max_start_date - month_start).days)
-                
-                if days_available > 0:
-                    stay_start_date = month_start + timedelta(days=random.randint(0, days_available))
-                else:
-                    stay_start_date = month_start
-                    
-            except ValueError:
-                stay_start_date = month_start
-
-
-        else:
-            # Regular booking logic
-            max_advance = min(customer['planning_horizon'], 180)
-            base_stay_date = booking_date + timedelta(days=random.randint(1, max_advance))
-            
-            # Apply seasonal bias to reduce September clustering
-            if base_stay_date.month == 9 and random.random() < 0.4:
-                target_month = random.choice([7, 8])
-                try:
-                    stay_start_date = base_stay_date.replace(month=target_month)
-                except ValueError:
-                    stay_start_date = datetime(base_stay_date.year, target_month, 
-                                             min(base_stay_date.day, 31))
-            else:
-                stay_start_date = base_stay_date
-
-            if stay_start_date <= booking_date:
-                # Push stay date to at least 1 day after booking
-                stay_start_date = booking_date + timedelta(days=random.randint(1, 30))
-
-        # Ensure stay is within operational months
-        if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
-            # Adjust to nearest operational month
-            if stay_start_date.month < 5:
-                stay_start_date = stay_start_date.replace(month=random.randint(5,9), day=random.randint(1,30))
-            elif stay_start_date.month > 9:
-                stay_start_date = stay_start_date.replace(month=random.randint(5,9), day=random.randint(1,30))
-        
-        stay_end_date = stay_start_date + timedelta(days=int(stay_length))
-        return stay_start_date, stay_end_date, stay_length
-    
     def generate_bookings(self, baseline_demand, campaigns, customers):
-        """Generate bookings using all configured parameters"""
+        """Generate bookings using improved logic"""
         bookings = []
         attribution_data = []
         
@@ -526,6 +596,7 @@ class ConfigurableHotelBookingGenerator:
         for date, base_demand in baseline_demand.items():
             if date.year > max(self.config.SIMULATION_YEARS):
                  continue
+            
             # Apply configured external shocks
             if random.random() < self.config.DATA_CONFIG['external_shock_probability']:
                 shock_factor = random.uniform(*self.config.DATA_CONFIG['shock_impact_range'])
@@ -569,6 +640,13 @@ class ConfigurableHotelBookingGenerator:
                     selected_campaign = random.choice(eligible_campaigns)
                     selected_campaign['actual_bookings'] += 1
                     is_promotional = True
+                    
+                    # Track campaign exposure for attribution
+                    customer['campaign_exposures'].append({
+                        'campaign_id': selected_campaign['campaign_id'],
+                        'exposure_date': date,
+                        'campaign_type': selected_campaign['campaign_type']
+                    })
                 
                 # Non-campaign promotional logic
                 if not selected_campaign:
@@ -601,11 +679,15 @@ class ConfigurableHotelBookingGenerator:
                     p=room_weights_normalized
                 )
                 
-                # Pricing with configured multipliers
-                base_price = self.config.BASE_PRICES[room_type]
-                seasonal_multiplier = self.config.DATA_CONFIG['seasonal_pricing_multipliers'].get(date.month, 1.0)
-                base_price *= seasonal_multiplier
+                # Generate stay dates using improved logic
+                stay_start_date, stay_end_date, stay_length = self.generate_robust_stay_dates(
+                    date, customer, selected_campaign
+                )
                 
+                # Improved pricing using ONLY periodic pricing
+                base_price = self.get_base_price_for_date(stay_start_date, room_type)
+                
+                # Apply segment-specific pricing adjustments
                 segment_pricing_multipliers = {
                     'Early_Planner': 0.95,    # 5% discount for advance booking
                     'Last_Minute': 1.10,      # 10% premium for last-minute
@@ -613,10 +695,19 @@ class ConfigurableHotelBookingGenerator:
                 }
                 segment_multiplier = segment_pricing_multipliers.get(customer['segment'], 1.0)
                 base_price *= segment_multiplier
-
-                # Generate stay dates
-                stay_start_date, stay_end_date, stay_length = self.generate_stay_dates(
-                    date, customer, selected_campaign
+                
+                # Check inventory and apply acceptance probability
+                acceptance_probability = self.inventory_tracker.get_acceptance_probability(
+                    stay_start_date, room_type, selected_campaign
+                )
+                
+                # If inventory management rejects the booking, skip this iteration
+                if random.random() > acceptance_probability:
+                    continue
+                
+                # Reserve inventory
+                self.inventory_tracker.reserve_inventory(
+                    stay_start_date, stay_end_date, room_type
                 )
                 
                 # Apply discounts
@@ -636,14 +727,10 @@ class ConfigurableHotelBookingGenerator:
                         discount_amount = base_price * discount_rate
                         final_price = base_price - discount_amount
                 
-                # Calculate attribution
-                attribution_score, is_incremental = self.calculate_attribution_score(
-                    {'booking_date': date, 'campaign_id': campaign_id_final}, campaigns, customer
+                # Calculate improved attribution
+                attribution_score, is_incremental = self.calculate_improved_attribution_score(
+                    date, selected_campaign, customer
                 )
-                
-                # Update customer fatigue
-                if selected_campaign:
-                    customer['campaign_fatigue'] += 1
                 
                 # Create booking record
                 booking = {
@@ -741,6 +828,32 @@ class ConfigurableHotelBookingGenerator:
         total_promo_rate = (df_bookings['discount_amount'] > 0).mean()
         print(f"   Total promotional rate: {total_promo_rate:.1%}")
         
+        # Date validation
+        invalid_dates = df_bookings[df_bookings['stay_start_date'] <= df_bookings['booking_date']]
+        
+        # Operational season validation
+        df_bookings['stay_month'] = df_bookings['stay_start_date'].dt.month
+        non_operational_stays = df_bookings[~df_bookings['stay_month'].isin(self.config.OPERATIONAL_MONTHS)]
+        operational_stays = df_bookings[df_bookings['stay_month'].isin(self.config.OPERATIONAL_MONTHS)]
+        
+        print(f"📅 DATE VALIDATION:")
+        print(f"   Invalid stay dates: {len(invalid_dates)} ({len(invalid_dates)/len(df_bookings):.1%})")
+        print(f"   Operational season stays: {len(operational_stays)} ({len(operational_stays)/len(df_bookings):.1%})")
+        print(f"   Non-operational season stays: {len(non_operational_stays)} ({len(non_operational_stays)/len(df_bookings):.1%})")
+        
+        if len(non_operational_stays) > 0:
+            print(f"   ⚠️  CRITICAL: {len(non_operational_stays)} stays found outside operational months {self.config.OPERATIONAL_MONTHS}")
+            month_breakdown = non_operational_stays['stay_month'].value_counts().sort_index()
+            print(f"   Month breakdown: {dict(month_breakdown)}")
+            
+            # Show sample of problematic bookings
+            sample_problems = non_operational_stays[['booking_date', 'stay_start_date', 'stay_month', 'campaign_id', 'customer_segment']].head(5)
+            print(f"   Sample problematic bookings:")
+            for _, row in sample_problems.iterrows():
+                print(f"     Booking: {row['booking_date'].strftime('%Y-%m-%d')} → Stay: {row['stay_start_date'].strftime('%Y-%m-%d')} (Month {row['stay_month']}) Campaign: {row['campaign_id']} Segment: {row['customer_segment']}")
+        else:
+            print(f"   ✅ All stays are within operational season!")
+        
         print("="*80)
     
     def save_data(self, bookings, campaigns, customers, attribution_data, baseline_demand):
@@ -755,6 +868,10 @@ class ConfigurableHotelBookingGenerator:
         
         df_customers = pd.DataFrame(customers)
         df_customers['booking_history'] = df_customers['booking_history'].apply(lambda x: ';'.join(x))
+        # Handle campaign exposures
+        df_customers['campaign_exposures'] = df_customers['campaign_exposures'].apply(
+            lambda x: ';'.join([f"{exp['campaign_id']}:{exp['exposure_date'].strftime('%Y-%m-%d')}" for exp in x])
+        )
         df_customers.to_csv('customer_segments.csv', index=False)
         
         df_attribution = pd.DataFrame(attribution_data)
@@ -771,48 +888,108 @@ class ConfigurableHotelBookingGenerator:
         print(f"   📄 baseline_demand_model.pkl")
     
     def generate_all_data(self):
-        """Main method to generate all data using configuration"""
-        print(f"\n🚀 Starting configurable data generation...")
+        """Main method to generate all data using improved configuration"""
+        print(f"\n🚀 Starting improved data generation...")
         
         campaigns = self.generate_campaigns()
         baseline_demand = self.generate_baseline_demand()
         customers = self.generate_customers()
         bookings, attribution_data = self.generate_bookings(baseline_demand, campaigns, customers)
         
-        print(f"\n📋 Applying cancellation and overbooking logic...")
-        
+        print(f"\n📋 Applying cancellation logic...")
         # Apply cancellations to existing bookings
         bookings = self.apply_cancellation_logic(bookings)
         
-        # Generate additional overbooked bookings
-        overbooked_bookings = self.generate_overbooked_bookings(bookings)
+        # Note: Removed old overbooking logic - now handled in inventory management
         
-        # Combine original and overbooked bookings
-        all_bookings = bookings + overbooked_bookings
+        self.validate_data(bookings, campaigns)
+        self.save_data(bookings, campaigns, customers, attribution_data, baseline_demand)
         
-        # Generate attribution data for overbooked bookings
-        for overbooked_booking in overbooked_bookings:
-            counterfactual_price = overbooked_booking['base_price']
-            attribution_truth = {
-                'booking_id': overbooked_booking['booking_id'],
-                'true_attribution_score': round(overbooked_booking['attribution_score'], 3),
-                'causal_campaign_id': overbooked_booking['campaign_id'],
-                'counterfactual_price': round(counterfactual_price, 2),
-                'would_have_booked_anyway': not overbooked_booking['incremental_flag']
-            }
-            attribution_data.append(attribution_truth)
+        print(f"\n🎉 Improved data generation complete!")
+        return bookings, campaigns, customers, attribution_data, baseline_demand
+
+
+class InventoryTracker:
+    """
+    Inventory management system for realistic overbooking and capacity constraints
+    """
+    
+    def __init__(self, config):
+        self.config = config
+        self.daily_inventory = defaultdict(lambda: defaultdict(int))
+        self.daily_reservations = defaultdict(lambda: defaultdict(int))
         
-        # Update attribution data for cancelled bookings
-        for booking in all_bookings:
-            if booking['is_cancelled'] and booking['campaign_id']:
-                for attr_record in attribution_data:
-                    if attr_record['booking_id'] == booking['booking_id']:
-                        attr_record['true_attribution_score'] = round(booking['attribution_score'], 3)
-                        attr_record['would_have_booked_anyway'] = True
-                        break
+        # Initialize base capacity per room type per day
+        self.base_capacity = {
+            'Standard': 50,
+            'Deluxe': 30, 
+            'Suite': 15,
+            'Premium': 10
+        }
+    
+    def get_acceptance_probability(self, stay_date, room_type, campaign=None):
+        """
+        Calculate probability of accepting a booking based on current inventory
+        and overbooking strategy
+        """
+        if not self.config.OVERBOOKING_CONFIG['enable_overbooking']:
+            # Conservative mode - only accept if capacity available
+            current_reservations = self.daily_reservations[stay_date][room_type]
+            base_cap = self.base_capacity[room_type]
+            return 1.0 if current_reservations < base_cap else 0.0
         
-        self.validate_data(all_bookings, campaigns)
-        self.save_data(all_bookings, campaigns, customers, attribution_data, baseline_demand)
+        # Calculate current occupancy rate
+        current_reservations = self.daily_reservations[stay_date][room_type]
+        base_cap = self.base_capacity[room_type]
+        occupancy_rate = current_reservations / base_cap
         
-        print(f"\n🎉 Configurable data generation complete!")
-        return all_bookings, campaigns, customers, attribution_data, baseline_demand
+        # Get overbooking parameters
+        base_overbooking_rate = self.config.OVERBOOKING_CONFIG['base_overbooking_rate']
+        month = stay_date.month
+        seasonal_multiplier = self.config.OVERBOOKING_CONFIG['seasonal_overbooking_multipliers'].get(month, 1.0)
+        
+        # Maximum overbooking threshold
+        max_overbooking = base_cap * (1 + base_overbooking_rate * seasonal_multiplier)
+        
+        if current_reservations < base_cap:
+            # Below capacity - always accept
+            return 1.0
+        elif current_reservations < max_overbooking:
+            # In overbooking zone - acceptance probability decreases
+            overbooking_progress = (current_reservations - base_cap) / (max_overbooking - base_cap)
+            acceptance_prob = 1.0 - (overbooking_progress * 0.8)  # Decrease to 20% at max overbooking
+            
+            # Campaign-specific adjustments
+            if campaign:
+                campaign_type = campaign['campaign_type']
+                campaign_adjustment = self.config.OVERBOOKING_CONFIG['campaign_overbooking_adjustment'].get(campaign_type, 1.0)
+                acceptance_prob *= campaign_adjustment
+            
+            return max(0.1, min(1.0, acceptance_prob))
+        else:
+            # Beyond maximum overbooking - very low acceptance
+            return 0.05
+    
+    def reserve_inventory(self, stay_start_date, stay_end_date, room_type):
+        """Reserve inventory for the entire stay duration"""
+        current_date = stay_start_date
+        while current_date < stay_end_date:
+            self.daily_reservations[current_date][room_type] += 1
+            current_date += timedelta(days=1)
+    
+    def get_overbooking_stats(self):
+        """Get statistics about overbooking levels"""
+        stats = {}
+        for date, room_data in self.daily_reservations.items():
+            for room_type, reservations in room_data.items():
+                base_cap = self.base_capacity[room_type]
+                if reservations > base_cap:
+                    overbooking_rate = (reservations - base_cap) / base_cap
+                    if date not in stats:
+                        stats[date] = {}
+                    stats[date][room_type] = {
+                        'reservations': reservations,
+                        'capacity': base_cap,
+                        'overbooking_rate': overbooking_rate
+                    }
+        return stats
