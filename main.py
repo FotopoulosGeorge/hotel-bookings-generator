@@ -2,13 +2,14 @@
 Hotel Booking Data Generator - Main Execution Script
 
 Run this script to generate hotel booking datasets using different scenarios.
+Updated to use the new modular architecture.
 """
 
 import sys
 import argparse
 from datetime import datetime
 from config import HotelBusinessConfig
-from data_generator import ConfigurableHotelBookingGenerator
+from generators.booking_generator import ConfigurableHotelBookingGenerator
 from scenarios import create_test_scenarios, get_scenario_description, validate_scenario, print_scenario_comparison
 
 
@@ -110,43 +111,7 @@ Examples:
     
     # Update output file names if prefix provided
     if args.output_prefix:
-        original_save_data = generator.save_data
-        
-        def save_data_with_prefix(bookings, campaigns, customers, attribution_data, baseline_demand):
-            """Modified save_data method with prefix"""
-            import pandas as pd
-            import pickle
-            
-            prefix = args.output_prefix
-            if not prefix.endswith('_'):
-                prefix += '_'
-            
-            df_bookings = pd.DataFrame(bookings)
-            df_bookings.to_csv(f'{prefix}historical_bookings.csv', index=False)
-            
-            df_campaigns = pd.DataFrame(campaigns)
-            df_campaigns['target_segments'] = df_campaigns['target_segments'].apply(lambda x: ';'.join(x))
-            df_campaigns['room_types_eligible'] = df_campaigns['room_types_eligible'].apply(lambda x: ';'.join(x))
-            df_campaigns.to_csv(f'{prefix}campaigns_run.csv', index=False)
-            
-            df_customers = pd.DataFrame(customers)
-            df_customers['booking_history'] = df_customers['booking_history'].apply(lambda x: ';'.join(x))
-            df_customers.to_csv(f'{prefix}customer_segments.csv', index=False)
-            
-            df_attribution = pd.DataFrame(attribution_data)
-            df_attribution.to_csv(f'{prefix}attribution_ground_truth.csv', index=False)
-            
-            with open(f'{prefix}baseline_demand_model.pkl', 'wb') as f:
-                pickle.dump(baseline_demand, f)
-            
-            print(f"\n✅ Saved all data files with prefix '{prefix}':")
-            print(f"   📄 {prefix}historical_bookings.csv ({len(bookings):,} records)")
-            print(f"   📄 {prefix}campaigns_run.csv ({len(campaigns)} records)")
-            print(f"   📄 {prefix}customer_segments.csv ({len(customers):,} records)")
-            print(f"   📄 {prefix}attribution_ground_truth.csv ({len(attribution_data):,} records)")
-            print(f"   📄 {prefix}baseline_demand_model.pkl")
-        
-        generator.save_data = save_data_with_prefix
+        _setup_prefixed_output(generator, args.output_prefix)
     
     # Generate data
     try:
@@ -172,6 +137,49 @@ Examples:
         sys.exit(1)
 
 
+def _setup_prefixed_output(generator, prefix):
+    """Setup prefixed output file names"""
+    import pandas as pd
+    import pickle
+    
+    if not prefix.endswith('_'):
+        prefix += '_'
+    
+    original_save_data = generator.save_data
+    
+    def save_data_with_prefix(bookings, campaigns, customers, attribution_data, baseline_demand):
+        """Modified save_data method with prefix"""
+        df_bookings = pd.DataFrame(bookings)
+        df_bookings.to_csv(f'{prefix}historical_bookings.csv', index=False)
+        
+        df_campaigns = pd.DataFrame(campaigns)
+        df_campaigns['target_segments'] = df_campaigns['target_segments'].apply(lambda x: ';'.join(x))
+        df_campaigns['room_types_eligible'] = df_campaigns['room_types_eligible'].apply(lambda x: ';'.join(x))
+        df_campaigns.to_csv(f'{prefix}campaigns_run.csv', index=False)
+        
+        df_customers = pd.DataFrame(customers)
+        df_customers['booking_history'] = df_customers['booking_history'].apply(lambda x: ';'.join(x))
+        df_customers['campaign_exposures'] = df_customers['campaign_exposures'].apply(
+            lambda x: ';'.join([f"{exp['campaign_id']}:{exp['exposure_date'].strftime('%Y-%m-%d')}" for exp in x])
+        )
+        df_customers.to_csv(f'{prefix}customer_segments.csv', index=False)
+        
+        df_attribution = pd.DataFrame(attribution_data)
+        df_attribution.to_csv(f'{prefix}attribution_ground_truth.csv', index=False)
+        
+        with open(f'{prefix}baseline_demand_model.pkl', 'wb') as f:
+            pickle.dump(baseline_demand, f)
+        
+        print(f"\n✅ Saved all data files with prefix '{prefix}':")
+        print(f"   📄 {prefix}historical_bookings.csv ({len(bookings):,} records)")
+        print(f"   📄 {prefix}campaigns_run.csv ({len(campaigns)} records)")
+        print(f"   📄 {prefix}customer_segments.csv ({len(customers):,} records)")
+        print(f"   📄 {prefix}attribution_ground_truth.csv ({len(attribution_data):,} records)")
+        print(f"   📄 {prefix}baseline_demand_model.pkl")
+    
+    generator.save_data = save_data_with_prefix
+
+
 def run_scenario_comparison():
     """Utility function to run all scenarios and compare outputs"""
     scenarios = create_test_scenarios()
@@ -186,35 +194,7 @@ def run_scenario_comparison():
         
         try:
             generator = ConfigurableHotelBookingGenerator(config)
-            
-            # Override save_data to use scenario prefix
-            original_save_data = generator.save_data
-            
-            def save_data_with_scenario_prefix(bookings, campaigns, customers, attribution_data, baseline_demand):
-                import pandas as pd
-                import pickle
-                
-                prefix = f"{scenario_name}_"
-                
-                df_bookings = pd.DataFrame(bookings)
-                df_bookings.to_csv(f'{prefix}historical_bookings.csv', index=False)
-                
-                df_campaigns = pd.DataFrame(campaigns)
-                df_campaigns['target_segments'] = df_campaigns['target_segments'].apply(lambda x: ';'.join(x))
-                df_campaigns['room_types_eligible'] = df_campaigns['room_types_eligible'].apply(lambda x: ';'.join(x))
-                df_campaigns.to_csv(f'{prefix}campaigns_run.csv', index=False)
-                
-                df_customers = pd.DataFrame(customers)
-                df_customers['booking_history'] = df_customers['booking_history'].apply(lambda x: ';'.join(x))
-                df_customers.to_csv(f'{prefix}customer_segments.csv', index=False)
-                
-                df_attribution = pd.DataFrame(attribution_data)
-                df_attribution.to_csv(f'{prefix}attribution_ground_truth.csv', index=False)
-                
-                with open(f'{prefix}baseline_demand_model.pkl', 'wb') as f:
-                    pickle.dump(baseline_demand, f)
-            
-            generator.save_data = save_data_with_scenario_prefix
+            _setup_prefixed_output(generator, scenario_name)
             
             bookings, campaigns, customers, attribution_data, baseline_demand = generator.generate_all_data()
             

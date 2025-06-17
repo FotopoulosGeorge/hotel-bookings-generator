@@ -223,7 +223,7 @@ class HotelBusinessConfig:
             'capacity_range': (200, 500),
             'influence_period_days': 120,
             'seasonal_stay_weights': {
-                5: 0.10, 6: 0.25, 7: 0.35, 8: 0.28, 9: 0.02
+                5: 0.15, 6: 0.20, 7: 0.30, 8: 0.30, 9: 0.05
             }
         },
         'Flash_Sale': {
