@@ -1,2 +1,104 @@
-visualizations
-output
+# Hotel Booking Generator - .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+hotel-booking-env/
+.venv/
+
+# Generated Data Files
+output/
+*.csv
+*.pkl
+*.pickle
+
+# Visualization Outputs
+visualizations/
+plots/
+*.png
+*.jpg
+*.html
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebooks 
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs and Temporary Files
+*.log
+*.tmp
+*.temp
+logs/
+
+# OS-specific Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# MyPy 
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Environment Variables 
+.env
+.env.local
+.env.*.local
+
+# Backup Files
+*.bak
+*.backup
+*~
+
+# Large Model Files 
+*.model
+*.joblib
+
+# Documentation Build 
+docs/_build/
+
+tests/
+verify_setup.py
+
