@@ -62,13 +62,13 @@ class HotelDataVisualizer:
             self.data = load_generated_data(self.data_prefix)
             if not self.data:
                 # Try direct CSV loading if utils import failed
-                booking_file = f"{self.data_prefix}historical_bookings.csv"
+                booking_file = f"output/{self.data_prefix}historical_bookings.csv"
                 if os.path.exists(booking_file):
                     self.data = {
                         'bookings': pd.read_csv(booking_file),
-                        'campaigns': pd.read_csv(f"{self.data_prefix}campaigns_run.csv"),
-                        'customers': pd.read_csv(f"{self.data_prefix}customer_segments.csv"),
-                        'attribution': pd.read_csv(f"{self.data_prefix}attribution_ground_truth.csv")
+                        'campaigns': pd.read_csv(f"output/{self.data_prefix}campaigns_run.csv"),
+                        'customers': pd.read_csv(f"output/{self.data_prefix}customer_segments.csv"),
+                        'attribution': pd.read_csv(f"output/{self.data_prefix}attribution_ground_truth.csv")
                     }
                     
                     # Convert date columns

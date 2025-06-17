@@ -149,33 +149,37 @@ def _setup_prefixed_output(generator, prefix):
     
     def save_data_with_prefix(bookings, campaigns, customers, attribution_data, baseline_demand):
         """Modified save_data method with prefix"""
+
+        import os
+        os.makedirs('output', exist_ok=True)
+
         df_bookings = pd.DataFrame(bookings)
-        df_bookings.to_csv(f'{prefix}historical_bookings.csv', index=False)
+        df_bookings.to_csv(f'output/{prefix}historical_bookings.csv', index=False)
         
         df_campaigns = pd.DataFrame(campaigns)
         df_campaigns['target_segments'] = df_campaigns['target_segments'].apply(lambda x: ';'.join(x))
         df_campaigns['room_types_eligible'] = df_campaigns['room_types_eligible'].apply(lambda x: ';'.join(x))
-        df_campaigns.to_csv(f'{prefix}campaigns_run.csv', index=False)
+        df_campaigns.to_csv(f'output/{prefix}campaigns_run.csv', index=False)
         
         df_customers = pd.DataFrame(customers)
         df_customers['booking_history'] = df_customers['booking_history'].apply(lambda x: ';'.join(x))
         df_customers['campaign_exposures'] = df_customers['campaign_exposures'].apply(
             lambda x: ';'.join([f"{exp['campaign_id']}:{exp['exposure_date'].strftime('%Y-%m-%d')}" for exp in x])
         )
-        df_customers.to_csv(f'{prefix}customer_segments.csv', index=False)
+        df_customers.to_csv(f'output/{prefix}customer_segments.csv', index=False)
         
         df_attribution = pd.DataFrame(attribution_data)
-        df_attribution.to_csv(f'{prefix}attribution_ground_truth.csv', index=False)
+        df_attribution.to_csv(f'output/{prefix}attribution_ground_truth.csv', index=False)
         
-        with open(f'{prefix}baseline_demand_model.pkl', 'wb') as f:
+        with open(f'output/{prefix}baseline_demand_model.pkl', 'wb') as f:
             pickle.dump(baseline_demand, f)
         
         print(f"\n✅ Saved all data files with prefix '{prefix}':")
-        print(f"   📄 {prefix}historical_bookings.csv ({len(bookings):,} records)")
-        print(f"   📄 {prefix}campaigns_run.csv ({len(campaigns)} records)")
-        print(f"   📄 {prefix}customer_segments.csv ({len(customers):,} records)")
-        print(f"   📄 {prefix}attribution_ground_truth.csv ({len(attribution_data):,} records)")
-        print(f"   📄 {prefix}baseline_demand_model.pkl")
+        print(f"   📄 output/{prefix}historical_bookings.csv ({len(bookings):,} records)")
+        print(f"   📄 output/{prefix}campaigns_run.csv ({len(campaigns)} records)")
+        print(f"   📄 output/{prefix}customer_segments.csv ({len(customers):,} records)")
+        print(f"   📄 output/{prefix}attribution_ground_truth.csv ({len(attribution_data):,} records)")
+        print(f"   📄 output/{prefix}baseline_demand_model.pkl")
     
     generator.save_data = save_data_with_prefix
 

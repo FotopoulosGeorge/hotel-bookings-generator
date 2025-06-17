@@ -172,13 +172,17 @@ class DataProcessor:
     def save_data(self, bookings, campaigns, customers, attribution_data, baseline_demand):
         """Save all generated data"""
         # Convert to DataFrames
+
+        import os
+        os.makedirs('output', exist_ok=True)  # Create output folder
+
         df_bookings = pd.DataFrame(bookings)
-        df_bookings.to_csv('historical_bookings.csv', index=False)
+        df_bookings.to_csv('output/historical_bookings.csv', index=False)
         
         df_campaigns = pd.DataFrame(campaigns)
         df_campaigns['target_segments'] = df_campaigns['target_segments'].apply(lambda x: ';'.join(x))
         df_campaigns['room_types_eligible'] = df_campaigns['room_types_eligible'].apply(lambda x: ';'.join(x))
-        df_campaigns.to_csv('campaigns_run.csv', index=False)
+        df_campaigns.to_csv('output/campaigns_run.csv', index=False)
         
         df_customers = pd.DataFrame(customers)
         df_customers['booking_history'] = df_customers['booking_history'].apply(lambda x: ';'.join(x))
@@ -186,27 +190,27 @@ class DataProcessor:
         df_customers['campaign_exposures'] = df_customers['campaign_exposures'].apply(
             lambda x: ';'.join([f"{exp['campaign_id']}:{exp['exposure_date'].strftime('%Y-%m-%d')}" for exp in x])
         )
-        df_customers.to_csv('customer_segments.csv', index=False)
+        df_customers.to_csv('output/customer_segments.csv', index=False)
         
         df_attribution = pd.DataFrame(attribution_data)
-        df_attribution.to_csv('attribution_ground_truth.csv', index=False)
+        df_attribution.to_csv('output/attribution_ground_truth.csv', index=False)
         
-        with open('baseline_demand_model.pkl', 'wb') as f:
+        with open('output/baseline_demand_model.pkl', 'wb') as f:
             pickle.dump(baseline_demand, f)
         
         print(f"\n✅ Saved all data files:")
-        print(f"   📄 historical_bookings.csv ({len(bookings):,} records)")
-        print(f"   📄 campaigns_run.csv ({len(campaigns)} records)")
-        print(f"   📄 customer_segments.csv ({len(customers):,} records)")
-        print(f"   📄 attribution_ground_truth.csv ({len(attribution_data):,} records)")
-        print(f"   📄 baseline_demand_model.pkl")
+        print(f"   📄 output/historical_bookings.csv ({len(bookings):,} records)")
+        print(f"   📄 output/campaigns_run.csv ({len(campaigns)} records)")
+        print(f"   📄 output/customer_segments.csv ({len(customers):,} records)")
+        print(f"   📄 output/attribution_ground_truth.csv ({len(attribution_data):,} records)")
+        print(f"   📄 output/baseline_demand_model.pkl")
         
         return {
-            'bookings_file': 'historical_bookings.csv',
-            'campaigns_file': 'campaigns_run.csv',
-            'customers_file': 'customer_segments.csv',
-            'attribution_file': 'attribution_ground_truth.csv',
-            'demand_model_file': 'baseline_demand_model.pkl'
+            'bookings_file': 'output/historical_bookings.csv',
+            'campaigns_file': 'output/campaigns_run.csv',
+            'customers_file': 'output/customer_segments.csv',
+            'attribution_file': 'output/attribution_ground_truth.csv',
+            'demand_model_file': 'output/baseline_demand_model.pkl'
         }
     
     def perform_data_quality_checks(self, bookings):

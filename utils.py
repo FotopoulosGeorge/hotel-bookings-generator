@@ -27,10 +27,10 @@ def load_generated_data(prefix: str = '') -> Dict:
     
     try:
         # Load CSV files
-        data['bookings'] = pd.read_csv(f'{prefix}historical_bookings.csv')
-        data['campaigns'] = pd.read_csv(f'{prefix}campaigns_run.csv')
-        data['customers'] = pd.read_csv(f'{prefix}customer_segments.csv')
-        data['attribution'] = pd.read_csv(f'{prefix}attribution_ground_truth.csv')
+        data['bookings'] = pd.read_csv(f'output/{prefix}historical_bookings.csv')
+        data['campaigns'] = pd.read_csv(f'output/{prefix}campaigns_run.csv')
+        data['customers'] = pd.read_csv(f'output/{prefix}customer_segments.csv')
+        data['attribution'] = pd.read_csv(f'output/{prefix}attribution_ground_truth.csv')
         
         # Convert date columns
         date_columns = {
@@ -44,7 +44,7 @@ def load_generated_data(prefix: str = '') -> Dict:
                     data[df_name][col] = pd.to_datetime(data[df_name][col], errors='coerce')
         
         # Load pickle file
-        with open(f'{prefix}baseline_demand_model.pkl', 'rb') as f:
+        with open(f'output/{prefix}baseline_demand_model.pkl', 'rb') as f:
             data['baseline_demand'] = pickle.load(f)
         
         print(f"✅ Successfully loaded data files with prefix '{prefix}'")
@@ -52,7 +52,7 @@ def load_generated_data(prefix: str = '') -> Dict:
         
     except FileNotFoundError as e:
         print(f"❌ Error loading files: {e}")
-        print(f"Make sure files with prefix '{prefix}' exist in current directory")
+        print(f"Make sure files with prefix '{prefix}' exist in output/ directory")
         return {}
 
 
