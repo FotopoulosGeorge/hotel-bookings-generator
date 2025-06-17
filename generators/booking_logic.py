@@ -281,7 +281,7 @@ class BookingLogic:
         
         if lead_time_days > max_lead_time:
             # Force to closer operational season
-            max_date = booking_date + timedelta(days=180)
+            max_date = booking_date + timedelta(days=max_lead_time)
             if max_date.month in self.config.OPERATIONAL_MONTHS:
                 return max_date
             else:

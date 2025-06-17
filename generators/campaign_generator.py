@@ -168,7 +168,7 @@ class CampaignGenerator:
         selected_campaign = None
         is_promotional = False
         
-        if eligible_campaigns and random.random() < self.config.CAMPAIGN_PARTICIPATION_RATE:
+        if eligible_campaigns and random.random() < min (0.85, self.config.CAMPAIGN_PARTICIPATION_RATE * 1.2):
             selected_campaign = random.choice(eligible_campaigns)
             selected_campaign['actual_bookings'] += 1
             is_promotional = True
