@@ -53,18 +53,18 @@ class BookingLogic:
                 booking_date, customer, max_advance_days, stay_length
             )
         
-        # MANDATORY OPERATIONAL SEASON ENFORCEMENT
-        stay_start_date = self._enforce_operational_season(
-            stay_start_date, booking_date, customer, stay_length
-        )
+        # # MANDATORY OPERATIONAL SEASON ENFORCEMENT
+        # stay_start_date = self._enforce_operational_season(
+        #     stay_start_date, booking_date, customer, stay_length
+        # )
         
         # Calculate stay end date
         stay_end_date = stay_start_date + timedelta(days=int(stay_length))
         
-        # Ensure stay doesn't extend beyond operational season
-        stay_end_date, stay_length = self._adjust_stay_end_for_season(
-            stay_start_date, stay_end_date, stay_length
-        )
+        # # Ensure stay doesn't extend beyond operational season
+        # stay_end_date, stay_length = self._adjust_stay_end_for_season(
+        #     stay_start_date, stay_end_date, stay_length
+        # )
         
         # Final lead time validation - cap excessive lead times
         stay_start_date = self._validate_final_lead_time(
@@ -225,7 +225,13 @@ class BookingLogic:
             weights_normalized = np.array(weights) / sum(weights)
             target_month = np.random.choice(available_months, p=weights_normalized)
         else:
-            target_month = random.choice(self.config.OPERATIONAL_MONTHS)
+            operational_month_weights = {5: 0.18, 6: 0.22, 7: 0.25, 8: 0.25, 9: 0.10}
+            weights_array = np.array(list(operational_month_weights.values()))
+            weights_normalized = weights_array / weights_array.sum()
+            target_month = np.random.choice(
+                list(operational_month_weights.keys()),
+                p=weights_normalized
+            )
         
         target_day = random.randint(1, 28)
         

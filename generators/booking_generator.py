@@ -93,7 +93,10 @@ class ConfigurableHotelBookingGenerator:
         campaign_lookup = self.campaign_generator.create_campaign_lookup(campaigns)
         
         total_bookings_generated = 0
-        
+        rejected_out_of_season = 0 # debugging variable
+        rejected_inventory = 0 # debugging variable
+        monthly_rejection_stats = {} # debugging variable
+
         for date, base_demand in baseline_demand.items():
             if date.year > max(self.config.SIMULATION_YEARS):
                 continue
@@ -104,7 +107,9 @@ class ConfigurableHotelBookingGenerator:
                 base_demand *= shock_factor
             
             num_bookings = max(1, int(np.random.poisson(base_demand)))
-            
+            daily_attempts = 0 # debugging variable
+            daily_rejections = 0 # debugging variable
+
             for _ in range(num_bookings):
                 customer = random.choice(customers)
                 
@@ -123,7 +128,25 @@ class ConfigurableHotelBookingGenerator:
                 stay_start_date, stay_end_date, stay_length = self.booking_logic.generate_stay_dates(
                     date, customer, selected_campaign
                 )
+
+                if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
+                    rejected_out_of_season += 1
+                    daily_rejections += 1
+                    continue
                 
+                if stay_end_date.month not in self.config.OPERATIONAL_MONTHS:
+                    rejected_out_of_season += 1
+                    daily_rejections += 1
+                    continue
+
+                # Check if stay is in operational season
+                if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
+                    continue  # Skip this booking attempt, try next one
+                
+                # Check if stay end is also in operational season
+                if stay_end_date.month not in self.config.OPERATIONAL_MONTHS:
+                    continue  # Skip this booking attempt, try next one
+
                 # Check inventory and get acceptance probability
                 acceptance_probability = self.inventory_manager.get_acceptance_probability(
                     stay_start_date, room_type, selected_campaign
@@ -131,6 +154,8 @@ class ConfigurableHotelBookingGenerator:
                 
                 # If inventory management rejects the booking, skip this iteration
                 if random.random() > acceptance_probability:
+                    rejected_inventory += 1
+                    daily_rejections += 1
                     continue
                 
                 # Reserve inventory
@@ -183,10 +208,20 @@ class ConfigurableHotelBookingGenerator:
                 
                 self.booking_counter += 1
                 total_bookings_generated += 1
+
+        month_key = date.strftime('%Y-%m')
+        if month_key not in monthly_rejection_stats:
+            monthly_rejection_stats[month_key] = {'attempts': 0, 'rejections': 0, 'out_of_season': 0}
+        
+        monthly_rejection_stats[month_key]['attempts'] += daily_attempts
+        monthly_rejection_stats[month_key]['rejections'] += daily_rejections        
         
         # Update campaign performance
         self.campaign_generator.update_campaign_performance(campaigns, bookings)
-        
+        print(f"📊 BOOKING GENERATION STATISTICS")
+        print(f"   Out-of-season rejections: {rejected_out_of_season:,}")
+        print(f"   Inventory rejections: {rejected_inventory:,}")
+        print(f"   Total successful bookings: {total_bookings_generated:,}")
         print(f"✅ Generated {total_bookings_generated} total bookings")
         return bookings, attribution_data
     

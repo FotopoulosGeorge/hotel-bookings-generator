@@ -101,9 +101,9 @@ class HotelBusinessConfig:
             7: 1.00,  # July - PEAK season
             8: 1.00,  # August - PEAK season
             9: 0.70,  # September - shoulder season
-            10: 0.55, # October - post-season planning
-            11: 0.85, # November - early booking campaigns
-            12: 0.80  # December - holiday season planning
+            10: 0.25, # October - post-season planning
+            11: 0.30, # November - early booking campaigns
+            12: 0.30  # December - holiday season planning
         }
         
         # 📅 WEEKLY DEMAND PATTERNS (Monday=0, Sunday=6)
