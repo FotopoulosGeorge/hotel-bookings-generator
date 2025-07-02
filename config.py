@@ -53,10 +53,23 @@ class HotelBusinessConfig:
         """
         
         # 🏨 PROPERTY OPERATIONS
+        self.OPERATION_MODE = 'seasonal'  # Options: 'seasonal' or 'year_round'
         self.OPERATIONAL_MONTHS = [5, 6, 7, 8, 9]  # May-September
+        self.BOOKING_ACCEPTANCE_MONTHS = list(range(1, 13))  # Hotels accept bookings year-round
         self.SIMULATION_YEARS = [2022, 2023, 2024]  # Years to generate data for
         self.ROOM_TYPES = ['Standard', 'Deluxe', 'Suite', 'Premium']
         
+        # NEW: Seasonal distribution strategy to prevent spikes
+        self.SEASONAL_DISTRIBUTION_STRATEGY = 'balanced'  # Options: 'natural', 'balanced', 'peak_focused'
+        
+        # NEW: Better distribution of stays across operational months
+        self.SEASONAL_STAY_DISTRIBUTION = {
+            5: 0.18,   # May - reduced from natural concentration
+            6: 0.22,   # June - slightly higher
+            7: 0.26,   # July - peak but not extreme
+            8: 0.24,   # August - still busy
+            9: 0.10    # September - tail off
+        }
         
         self.INVENTORY_CONFIG = {
             'base_capacity_per_room_type': {
@@ -64,8 +77,8 @@ class HotelBusinessConfig:
                 'Deluxe': 30,
                 'Suite': 15, 
                 'Premium': 10
+            }
         }
-    }
 
         # 💰 BASE PRICING ($ per night) - Used when periodic pricing is disabled
         self.BASE_PRICES = {
@@ -88,22 +101,22 @@ class HotelBusinessConfig:
             annual_growth_rate=0.045  # 4.5% annual growth
         )
         
-
-        
         # 📈 SEASONAL DEMAND PATTERNS (relative to peak)
+        # For seasonal hotels: represents booking volume throughout the year
+        # For year-round: represents both booking and stay volume
         self.SEASONAL_DEMAND_MULTIPLIERS = {
-            1: 0.40,  # January - low booking activity
-            2: 0.45,  # February - low booking activity  
-            3: 0.60,  # March - spring planning starts
-            4: 0.75,  # April - pre-season booking rush
-            5: 0.70,  # May - shoulder season
-            6: 0.85,  # June - building to peak  
-            7: 1.00,  # July - PEAK season
-            8: 1.00,  # August - PEAK season
-            9: 0.70,  # September - shoulder season
-            10: 0.25, # October - post-season planning
-            11: 0.30, # November - early booking campaigns
-            12: 0.30  # December - holiday season planning
+            1: 0.50,   # January - early bird bookings for summer
+            2: 0.60,   # February - increasing early bookings
+            3: 0.75,   # March - more bookings as season approaches
+            4: 0.90,   # April - final pre-season rush
+            5: 0.70,   # May - some last-minute for current season
+            6: 0.50,   # June - mostly current stays, few new bookings
+            7: 0.35,   # July - very few new bookings (mostly full)
+            8: 0.30,   # August - minimal new bookings
+            9: 0.40,   # September - end of season
+            10: 0.65,  # October - early birds for next year start
+            11: 0.75,  # November - early booking campaigns
+            12: 0.70   # December - holiday early bookings
         }
         
         # 📅 WEEKLY DEMAND PATTERNS (Monday=0, Sunday=6)

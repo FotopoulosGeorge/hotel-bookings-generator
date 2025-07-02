@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import random
 from datetime import datetime
+from collections import defaultdict
 from config import HotelBusinessConfig
 
 from .campaign_generator import CampaignGenerator
@@ -42,15 +43,71 @@ class ConfigurableHotelBookingGenerator:
         self.booking_logic = BookingLogic(self.config)
         self.data_processor = DataProcessor(self.config)
         
+        # Initialize monthly booking tracker for capacity management
+        self.monthly_bookings = defaultdict(lambda: defaultdict(int))
+        self.monthly_capacity_targets = self._calculate_monthly_capacity_targets()
+        
         # Set random seed for reproducibility
         np.random.seed(42)
         random.seed(42)
         
+        # Determine operation mode for display
+        operation_mode = getattr(self.config, 'OPERATION_MODE', 'seasonal')
+        
         print(f"🏨 Initialized Hotel Booking Generator")
+        print(f"   🏢 Operation mode: {operation_mode}")
         print(f"   📅 Simulation period: {min(self.config.SIMULATION_YEARS)}-{max(self.config.SIMULATION_YEARS)}")
         print(f"   🏖️  Operational months: {self.config.OPERATIONAL_MONTHS}")
         print(f"   👥 Target customers: {self.config.DATA_CONFIG['total_customers']:,}")
         print(f"   📊 Target channel split: {self.config.TARGET_CONNECTED_AGENT_SHARE:.0%}/{self.config.TARGET_ONLINE_DIRECT_SHARE:.0%}")
+    
+    def _calculate_monthly_capacity_targets(self):
+        """Calculate target booking distribution to prevent spikes"""
+        targets = {}
+        
+        # Check if we have configured distribution
+        if hasattr(self.config, 'SEASONAL_STAY_DISTRIBUTION'):
+            return self.config.SEASONAL_STAY_DISTRIBUTION
+        
+        # For seasonal hotels, calculate based on operational months
+        if hasattr(self.config, 'OPERATIONAL_MONTHS') and len(self.config.OPERATIONAL_MONTHS) < 12:
+            total_days = 0
+            monthly_days = {}
+            
+            for month in self.config.OPERATIONAL_MONTHS:
+                # Approximate days per month
+                if month in [4, 6, 9, 11]:
+                    days = 30
+                elif month == 2:
+                    days = 28
+                else:
+                    days = 31
+                monthly_days[month] = days
+                total_days += days
+            
+            # Set proportional targets with adjustments
+            for month, days in monthly_days.items():
+                base_proportion = days / total_days
+                
+                # Adjust to prevent May spike
+                if month == 5:
+                    targets[month] = base_proportion * 0.9  # Reduce May
+                elif month in [6, 7]:
+                    targets[month] = base_proportion * 1.1  # Increase June-July
+                else:
+                    targets[month] = base_proportion
+        else:
+            # Year-round: use demand multipliers
+            for month in range(1, 13):
+                targets[month] = self.config.SEASONAL_DEMAND_MULTIPLIERS.get(month, 1.0)
+        
+        # Normalize targets
+        total = sum(targets.values())
+        if total > 0:
+            for month in targets:
+                targets[month] = targets[month] / total
+        
+        return targets
     
     def generate_baseline_demand(self):
         """Generate baseline demand using configured parameters"""
@@ -58,6 +115,10 @@ class ConfigurableHotelBookingGenerator:
         
         for year in self.config.SIMULATION_YEARS:
             for month in range(1, 13):
+                # Hotels accept bookings year-round
+                if month not in self.config.BOOKING_ACCEPTANCE_MONTHS:
+                    continue
+                    
                 if month == 12:
                     days_in_month = 31
                 else:
@@ -84,6 +145,28 @@ class ConfigurableHotelBookingGenerator:
         
         return baseline_demand
     
+    def _should_redirect_booking(self, stay_month, year):
+        """Check if booking should be redirected to prevent monthly spikes"""
+        # Only redirect for seasonal hotels
+        if not hasattr(self.config, 'OPERATIONAL_MONTHS') or len(self.config.OPERATIONAL_MONTHS) >= 12:
+            return False
+        
+        # Get current distribution
+        total_bookings = sum(self.monthly_bookings[year].values())
+        
+        # Need minimum bookings before redirecting
+        if total_bookings < 100:
+            return False
+        
+        current_month_bookings = self.monthly_bookings[year][stay_month]
+        current_ratio = current_month_bookings / total_bookings if total_bookings > 0 else 0
+        
+        # Get target ratio
+        target_ratio = self.monthly_capacity_targets.get(stay_month, 0.2)
+        
+        # Redirect if this month has >140% of its target share
+        return current_ratio > (target_ratio * 1.4)
+    
     def generate_bookings(self, baseline_demand, campaigns, customers):
         """Generate bookings using all component systems"""
         bookings = []
@@ -93,9 +176,8 @@ class ConfigurableHotelBookingGenerator:
         campaign_lookup = self.campaign_generator.create_campaign_lookup(campaigns)
         
         total_bookings_generated = 0
-        rejected_out_of_season = 0 # debugging variable
-        rejected_inventory = 0 # debugging variable
-        monthly_rejection_stats = {} # debugging variable
+        rejected_stays = 0  # For seasonal hotels
+        capacity_redirects = 0  # Track redirections
 
         for date, base_demand in baseline_demand.items():
             if date.year > max(self.config.SIMULATION_YEARS):
@@ -107,8 +189,6 @@ class ConfigurableHotelBookingGenerator:
                 base_demand *= shock_factor
             
             num_bookings = max(1, int(np.random.poisson(base_demand)))
-            daily_attempts = 0 # debugging variable
-            daily_rejections = 0 # debugging variable
 
             for _ in range(num_bookings):
                 customer = random.choice(customers)
@@ -124,28 +204,38 @@ class ConfigurableHotelBookingGenerator:
                 # Room type selection
                 room_type = self.booking_logic.select_room_type()
                 
-                # Generate stay dates
+                # Generate stay dates (handles both seasonal and year-round)
                 stay_start_date, stay_end_date, stay_length = self.booking_logic.generate_stay_dates(
                     date, customer, selected_campaign
                 )
-
-                if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
-                    rejected_out_of_season += 1
-                    daily_rejections += 1
-                    continue
                 
-                if stay_end_date.month not in self.config.OPERATIONAL_MONTHS:
-                    rejected_out_of_season += 1
-                    daily_rejections += 1
-                    continue
-
-                # Check if stay is in operational season
-                if stay_start_date.month not in self.config.OPERATIONAL_MONTHS:
-                    continue  # Skip this booking attempt, try next one
+                # For seasonal hotels, verify stays are within operational months
+                if hasattr(self.config, 'OPERATION_MODE') and self.config.OPERATION_MODE == 'seasonal':
+                    if (stay_start_date.month not in self.config.OPERATIONAL_MONTHS or 
+                        stay_end_date.month not in self.config.OPERATIONAL_MONTHS):
+                        rejected_stays += 1
+                        continue
                 
-                # Check if stay end is also in operational season
-                if stay_end_date.month not in self.config.OPERATIONAL_MONTHS:
-                    continue  # Skip this booking attempt, try next one
+                # Check if we should redirect to prevent spikes
+                if self._should_redirect_booking(stay_start_date.month, stay_start_date.year):
+                    # Try to find alternative month
+                    alternative_found = False
+                    for _ in range(3):  # Try up to 3 times
+                        alt_start, alt_end, alt_length = self.booking_logic.generate_stay_dates(
+                            date, customer, selected_campaign
+                        )
+                        
+                        if not self._should_redirect_booking(alt_start.month, alt_start.year):
+                            stay_start_date = alt_start
+                            stay_end_date = alt_end
+                            stay_length = alt_length
+                            capacity_redirects += 1
+                            alternative_found = True
+                            break
+                    
+                    if not alternative_found:
+                        # Use original dates if no alternative found
+                        pass
 
                 # Check inventory and get acceptance probability
                 acceptance_probability = self.inventory_manager.get_acceptance_probability(
@@ -154,8 +244,6 @@ class ConfigurableHotelBookingGenerator:
                 
                 # If inventory management rejects the booking, skip this iteration
                 if random.random() > acceptance_probability:
-                    rejected_inventory += 1
-                    daily_rejections += 1
                     continue
                 
                 # Reserve inventory
@@ -195,6 +283,9 @@ class ConfigurableHotelBookingGenerator:
                 
                 bookings.append(booking)
                 
+                # Track monthly distribution
+                self.monthly_bookings[stay_start_date.year][stay_start_date.month] += 1
+                
                 # Attribution ground truth
                 counterfactual_price = base_price if campaign_id_final else final_price
                 attribution_truth = {
@@ -208,21 +299,30 @@ class ConfigurableHotelBookingGenerator:
                 
                 self.booking_counter += 1
                 total_bookings_generated += 1
-
-        month_key = date.strftime('%Y-%m')
-        if month_key not in monthly_rejection_stats:
-            monthly_rejection_stats[month_key] = {'attempts': 0, 'rejections': 0, 'out_of_season': 0}
-        
-        monthly_rejection_stats[month_key]['attempts'] += daily_attempts
-        monthly_rejection_stats[month_key]['rejections'] += daily_rejections        
         
         # Update campaign performance
         self.campaign_generator.update_campaign_performance(campaigns, bookings)
-        print(f"📊 BOOKING GENERATION STATISTICS")
-        print(f"   Out-of-season rejections: {rejected_out_of_season:,}")
-        print(f"   Inventory rejections: {rejected_inventory:,}")
+        
+        # Print generation statistics
+        print(f"\n📊 BOOKING GENERATION STATISTICS")
+        if hasattr(self.config, 'OPERATION_MODE') and self.config.OPERATION_MODE == 'seasonal':
+            print(f"   Out-of-season stay rejections: {rejected_stays:,}")
+        print(f"   Capacity-based redirections: {capacity_redirects:,}")
         print(f"   Total successful bookings: {total_bookings_generated:,}")
-        print(f"✅ Generated {total_bookings_generated} total bookings")
+        
+        # Print monthly distribution for seasonal hotels
+        if hasattr(self.config, 'OPERATIONAL_MONTHS') and len(self.config.OPERATIONAL_MONTHS) < 12:
+            print(f"\n📅 Monthly Stay Distribution:")
+            for year in sorted(self.monthly_bookings.keys()):
+                year_total = sum(self.monthly_bookings[year].values())
+                if year_total > 0:
+                    print(f"   Year {year}:")
+                    for month in self.config.OPERATIONAL_MONTHS:
+                        count = self.monthly_bookings[year][month]
+                        percentage = (count / year_total * 100) if year_total > 0 else 0
+                        target = self.monthly_capacity_targets.get(month, 0) * 100
+                        print(f"     Month {month}: {count:,} stays ({percentage:.1f}% actual vs {target:.1f}% target)")
+        
         return bookings, attribution_data
     
     def validate_data(self, bookings, campaigns):

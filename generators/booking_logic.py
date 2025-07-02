@@ -36,42 +36,36 @@ class BookingLogic:
         1. Ensure stay is after booking
         2. Respect customer planning horizon
         3. Apply campaign-specific logic
-        4. Ensure operational season compliance
+        4. Ensure operational season compliance (for seasonal hotels)
         5. Validate stay length feasibility
         """
         stay_length = self._select_stay_length()
         
-        # Calculate latest possible booking start (respecting planning horizon)
-        max_advance_days = min(customer['planning_horizon'], 365)
-        
-        if selected_campaign and selected_campaign['campaign_type'] == 'Early_Booking':
-            stay_start_date = self._generate_early_booking_stay_dates(
-                booking_date, customer, selected_campaign, stay_length
+        # Check operation mode
+        if hasattr(self.config, 'OPERATION_MODE') and self.config.OPERATION_MODE == 'year_round':
+            # Year-round hotels: simple logic
+            stay_start_date = self._generate_year_round_stay_date(
+                booking_date, customer, selected_campaign
             )
         else:
-            stay_start_date = self._generate_regular_stay_dates(
-                booking_date, customer, max_advance_days, stay_length
-            )
-        
-        # # MANDATORY OPERATIONAL SEASON ENFORCEMENT
-        # stay_start_date = self._enforce_operational_season(
-        #     stay_start_date, booking_date, customer, stay_length
-        # )
+            # Seasonal hotels: must ensure stay falls within operational months
+            if selected_campaign and selected_campaign['campaign_type'] == 'Early_Booking':
+                stay_start_date = self._generate_early_booking_stay_dates(
+                    booking_date, customer, selected_campaign, stay_length
+                )
+            else:
+                stay_start_date = self._generate_regular_stay_dates(
+                    booking_date, customer, customer['planning_horizon'], stay_length
+                )
         
         # Calculate stay end date
         stay_end_date = stay_start_date + timedelta(days=int(stay_length))
         
-        # # Ensure stay doesn't extend beyond operational season
-        # stay_end_date, stay_length = self._adjust_stay_end_for_season(
-        #     stay_start_date, stay_end_date, stay_length
-        # )
-        
-        # Final lead time validation - cap excessive lead times
-        stay_start_date = self._validate_final_lead_time(
-            stay_start_date, booking_date, customer
-        )
-        
-        stay_end_date = stay_start_date + timedelta(days=int(stay_length))
+        # Final validation for seasonal hotels
+        if hasattr(self.config, 'OPERATION_MODE') and self.config.OPERATION_MODE == 'seasonal':
+            stay_start_date, stay_end_date, stay_length = self._validate_seasonal_stay(
+                stay_start_date, stay_end_date, stay_length, booking_date
+            )
         
         return stay_start_date, stay_end_date, stay_length
     
@@ -88,8 +82,20 @@ class BookingLogic:
         
         return stay_length
     
+    def _generate_year_round_stay_date(self, booking_date, customer, selected_campaign):
+        """Simple stay date generation for year-round hotels"""
+        segment_config = self.config.CUSTOMER_SEGMENTS[customer['segment']]
+        min_days, max_days = segment_config['advance_booking_days']
+        
+        # Apply campaign constraints if any
+        if selected_campaign and selected_campaign['campaign_type'] == 'Early_Booking':
+            min_days = max(min_days, selected_campaign.get('advance_booking_requirements', 60))
+        
+        advance_days = random.randint(min_days, max_days)
+        return booking_date + timedelta(days=advance_days)
+    
     def _generate_early_booking_stay_dates(self, booking_date, customer, selected_campaign, stay_length):
-        """Generate stay dates for early booking campaigns"""
+        """Generate stay dates for early booking campaigns with improved distribution"""
         current_year = booking_date.year
         
         # Determine target operational season year
@@ -98,208 +104,212 @@ class BookingLogic:
         else:  # Booking later targets next year season  
             target_year = current_year + 1
         
-        # Use configured seasonal weights but constrain to operational months
-        eb_config = self.config.CAMPAIGN_TYPES['Early_Booking']
-        operational_weights = {5: 0.10, 6: 0.25, 7: 0.35, 8: 0.28, 9: 0.02}
-        
-        if operational_weights:
-            weights_array = np.array(list(operational_weights.values()))
-            weights_normalized = weights_array / weights_array.sum()
-            
-            selected_month = np.random.choice(
-                list(operational_weights.keys()),
-                p=weights_normalized
-            )
+        # Use configured distribution or improved default weights
+        if hasattr(self.config, 'SEASONAL_STAY_DISTRIBUTION'):
+            operational_weights = self.config.SEASONAL_STAY_DISTRIBUTION
         else:
-            # Fallback to random operational month
-            selected_month = random.choice(self.config.OPERATIONAL_MONTHS)
+            # Better distribution that prevents spikes
+            operational_weights = {
+                5: 0.18,   # May: Moderate early season
+                6: 0.22,   # June: Building up
+                7: 0.26,   # July: Peak
+                8: 0.24,   # August: Still busy
+                9: 0.10    # September: Tail end
+            }
         
-        # Generate stay start in selected month
+        # Add variation based on booking month to spread load
+        adjusted_weights = self._adjust_weights_by_booking_month(
+            operational_weights, booking_date.month, stay_length
+        )
+        
+        # Select month with adjusted weights
+        months = list(adjusted_weights.keys())
+        weights = list(adjusted_weights.values())
+        
+        # Normalize weights
+        total_weight = sum(weights)
+        normalized_weights = [w/total_weight for w in weights]
+        
+        selected_month = np.random.choice(months, p=normalized_weights)
+        
+        # Generate stay start within selected month
         try:
             month_start = datetime(target_year, selected_month, 1)
-            if selected_month == 9:
-                month_end = datetime(target_year, selected_month, 30)
+            
+            # Calculate days in month
+            if selected_month in [4, 6, 9, 11]:
+                days_in_month = 30
+            elif selected_month == 2:
+                days_in_month = 29 if target_year % 4 == 0 else 28
             else:
-                month_end = datetime(target_year, selected_month, 30)
+                days_in_month = 31
             
             # Ensure stay can fit in the month
-            max_start_in_month = month_end - timedelta(days=int(stay_length))
-            if max_start_in_month >= month_start:
-                days_available = (max_start_in_month - month_start).days
-                stay_start_date = month_start + timedelta(days=random.randint(0, max(0, days_available)))
+            max_start_day = days_in_month - stay_length + 1
+            max_start_day = max(1, min(max_start_day, days_in_month - 1))
+            
+            # Distribute throughout the month, not just at the beginning
+            if random.random() < 0.7:  # 70% chance to avoid first week
+                min_start_day = 8
             else:
-                stay_start_date = month_start
-                
+                min_start_day = 1
+            
+            min_start_day = min(min_start_day, max_start_day)
+            selected_day = random.randint(min_start_day, max_start_day)
+            
+            stay_start_date = datetime(target_year, selected_month, selected_day)
+            
         except ValueError:
-            # Fallback to start of operational season
-            stay_start_date = datetime(target_year, min(self.config.OPERATIONAL_MONTHS), 1)
+            # Fallback to middle of operational season
+            stay_start_date = datetime(target_year, 7, 15)
         
         return stay_start_date
     
+    def _adjust_weights_by_booking_month(self, base_weights, booking_month, stay_length):
+        """Adjust month selection weights based on when booking is made"""
+        adjusted_weights = base_weights.copy()
+        
+        # Very early bookings (Jan-Feb) should spread more to mid-season
+        if booking_month <= 2:
+            # Reduce May weight
+            if 5 in adjusted_weights:
+                adjusted_weights[5] *= 0.7
+            # Increase June-July weights
+            if 6 in adjusted_weights:
+                adjusted_weights[6] *= 1.2
+            if 7 in adjusted_weights:
+                adjusted_weights[7] *= 1.1
+        
+        # March-April bookings can be more evenly distributed
+        elif booking_month in [3, 4]:
+            # Slight reduction in May
+            if 5 in adjusted_weights:
+                adjusted_weights[5] *= 0.9
+        
+        # Late year bookings (Oct-Dec) for next year
+        elif booking_month >= 10:
+            # These can use normal distribution
+            pass
+        
+        return adjusted_weights
+    
     def _generate_regular_stay_dates(self, booking_date, customer, max_advance_days, stay_length):
-        """Generate stay dates for regular bookings"""
+        """Generate stay dates for regular bookings with better distribution"""
         min_advance_days = 1
         max_advance_days = min(customer['planning_horizon'], 180)
         
-        # Generate multiple candidate dates and pick the first one in operational season
-        max_attempts = 10
-        best_candidates = []
-        regular_candidates = []
-
-        for attempt in range(max_attempts):
-            advance_days = random.randint(min_advance_days, max_advance_days)
-            candidate_date = booking_date + timedelta(days=advance_days)
+        # For seasonal hotels, find stays within operational months
+        if hasattr(self.config, 'OPERATIONAL_MONTHS') and len(self.config.OPERATIONAL_MONTHS) < 12:
+            stay_candidates = []
             
-            if candidate_date.month in self.config.OPERATIONAL_MONTHS:
-                if candidate_date.month in [7, 8]:  # Prefer July-August
-                    best_candidates.append(candidate_date)
-                else:
-                    regular_candidates.append(candidate_date)
-
-        # Select from best candidates first, then regular
-        if best_candidates:
-            stay_start_date = random.choice(best_candidates)
-        elif regular_candidates:
-            stay_start_date = random.choice(regular_candidates)
-        else:
-            stay_start_date = None
-        
-        # If no candidate found in operational season, force one
-        if stay_start_date is None:
-            target_year = booking_date.year
-            
-            # If booking is late in year, target next year's season
-            if booking_date.month >= 10:
-                target_year += 1
-            elif booking_date.month < min(self.config.OPERATIONAL_MONTHS):
-                pass  # Use current year
-            else:
-                target_year += 1
-            
-            target_month = random.choice(self.config.OPERATIONAL_MONTHS)
-            target_day = random.randint(1, 28)
-            stay_start_date = datetime(target_year, target_month, target_day)
-        
-        return stay_start_date
-    
-    def _enforce_operational_season(self, stay_start_date, booking_date, customer, stay_length):
-        """Force stay into operational season if it's not already"""
-        if stay_start_date.month in self.config.OPERATIONAL_MONTHS:
-            return stay_start_date
-        
-        # Determine which operational year to target
-        current_year = stay_start_date.year
-        segment_lead_time_caps = {
-            'Last_Minute': 45,      # 1.5 months max
-            'Flexible': 120,        # 4 months max  
-            'Early_Planner': 180    # 6 months max
-        }
-        max_reasonable_lead_time = segment_lead_time_caps.get(customer['segment'], 120)
-        
-        # If booking is late in year, target next year's season
-        if booking_date.month >= 10:
-            next_year_start = datetime(current_year + 1, min(self.config.OPERATIONAL_MONTHS), 1)
-            if (next_year_start - booking_date).days <= max_reasonable_lead_time:
-                target_year = current_year + 1
-            else:
-                current_season_end = datetime(current_year, max(self.config.OPERATIONAL_MONTHS), 30)
-                if current_season_end > booking_date:
-                    target_year = current_year
-                else:
-                    target_year = current_year + 1
-        elif stay_start_date.month < min(self.config.OPERATIONAL_MONTHS):
-            target_year = current_year
-        else:
-            next_year_start = datetime(current_year + 1, min(self.config.OPERATIONAL_MONTHS), 1)
-            if (next_year_start - booking_date).days <= max_reasonable_lead_time:
-                target_year = current_year + 1
-            else:
-                target_year = current_year
-        
-        # Pick operational month with smart distribution
-        operational_month_weights = {5: 0.15, 6: 0.25, 7: 0.30, 8: 0.25, 9: 0.05}
-        available_months = [m for m in self.config.OPERATIONAL_MONTHS if m in operational_month_weights]
-        
-        if available_months:
-            weights = [operational_month_weights[m] for m in available_months]
-            weights_normalized = np.array(weights) / sum(weights)
-            target_month = np.random.choice(available_months, p=weights_normalized)
-        else:
-            operational_month_weights = {5: 0.18, 6: 0.22, 7: 0.25, 8: 0.25, 9: 0.10}
-            weights_array = np.array(list(operational_month_weights.values()))
-            weights_normalized = weights_array / weights_array.sum()
-            target_month = np.random.choice(
-                list(operational_month_weights.keys()),
-                p=weights_normalized
-            )
-        
-        target_day = random.randint(1, 28)
-        
-        try:
-            forced_stay_date = datetime(target_year, target_month, target_day)
-            
-            # Ensure the forced date is reasonable
-            days_ahead = (forced_stay_date - booking_date).days
-            max_reasonable_advance = min(customer['planning_horizon'], 365)
-            
-            if 1 <= days_ahead <= max_reasonable_advance:
-                return forced_stay_date
-            else:
-                # If too far, pick a closer operational date
-                if days_ahead > max_reasonable_advance:
-                    if current_year == booking_date.year:
-                        closer_date = datetime(current_year, target_month, target_day)
-                        if (closer_date - booking_date).days >= 1:
-                            return closer_date
-                else:
-                    # If negative days, ensure it's at least 1 day ahead
-                    fallback_date = booking_date + timedelta(days=random.randint(1, 30))
-                    if fallback_date.month not in self.config.OPERATIONAL_MONTHS:
-                        operational_start = datetime(fallback_date.year, min(self.config.OPERATIONAL_MONTHS), 1)
-                        return operational_start + timedelta(days=random.randint(0, 60))
-                    return fallback_date
-                    
-        except ValueError:
-            # Emergency fallback
-            operational_start = datetime(current_year, min(self.config.OPERATIONAL_MONTHS), 1)
-            return operational_start + timedelta(days=random.randint(0, 30))
-        
-        # Final fallback
-        return datetime(target_year, 5, random.randint(1, 28))
-    
-    def _adjust_stay_end_for_season(self, stay_start_date, stay_end_date, stay_length):
-        """Ensure stay doesn't extend beyond operational season"""
-        if stay_end_date.month > max(self.config.OPERATIONAL_MONTHS):
-            # Truncate stay to end of operational season
-            season_end = datetime(stay_start_date.year, max(self.config.OPERATIONAL_MONTHS), 30)
-            if season_end > stay_start_date:
-                adjusted_length = (season_end - stay_start_date).days
-                stay_length = max(1, min(stay_length, adjusted_length))
-                stay_end_date = stay_start_date + timedelta(days=int(stay_length))
-        
-        return stay_end_date, stay_length
-    
-    def _validate_final_lead_time(self, stay_start_date, booking_date, customer):
-        """Final lead time validation - cap excessive lead times"""
-        segment_caps = {'Last_Minute': 45, 'Flexible': 120, 'Early_Planner': 180}
-        max_lead_time = segment_caps.get(customer['segment'], 120)
-        lead_time_days = (stay_start_date - booking_date).days
-        
-        if lead_time_days > max_lead_time:
-            # Force to closer operational season
-            max_date = booking_date + timedelta(days=max_lead_time)
-            if max_date.month in self.config.OPERATIONAL_MONTHS:
-                return max_date
-            else:
-                # Find nearest operational month within 180 days
-                for days_ahead in range(30, 181, 30):
-                    candidate_date = booking_date + timedelta(days=days_ahead)
-                    if candidate_date.month in self.config.OPERATIONAL_MONTHS:
-                        return candidate_date
+            # Look for valid stay dates
+            for advance in range(min_advance_days, min(max_advance_days, 365)):
+                candidate_date = booking_date + timedelta(days=advance)
                 
-                # Last resort - use current year operational season if available
-                current_season_start = datetime(booking_date.year, min(self.config.OPERATIONAL_MONTHS), 1)
-                if current_season_start > booking_date:
-                    return current_season_start
+                if candidate_date.month in self.config.OPERATIONAL_MONTHS:
+                    # Check if full stay would fit
+                    stay_end = candidate_date + timedelta(days=int(stay_length))
+                    
+                    # Allow stays that mostly fit in operational months
+                    if stay_end.month in self.config.OPERATIONAL_MONTHS or \
+                       (stay_end.month == self.config.OPERATIONAL_MONTHS[-1] + 1 and stay_end.day <= 5):
+                        stay_candidates.append((advance, candidate_date))
+            
+            if stay_candidates:
+                # Distribute across operational season
+                weights = []
+                for advance, date in stay_candidates:
+                    month = date.month
+                    
+                    # Use configured distribution if available
+                    if hasattr(self.config, 'SEASONAL_STAY_DISTRIBUTION'):
+                        weight = self.config.SEASONAL_STAY_DISTRIBUTION.get(month, 0.2)
+                    else:
+                        # Default weights to reduce May spike
+                        if month == 5:
+                            weight = 0.7  # Reduce May
+                        elif month in [6, 7]:
+                            weight = 1.3  # Prefer June-July
+                        elif month == 8:
+                            weight = 1.1
+                        else:
+                            weight = 0.9
+                    
+                    weights.append(weight)
+                
+                # Normalize and select
+                total_weight = sum(weights)
+                if total_weight > 0:
+                    weights = [w/total_weight for w in weights]
+                    selected_idx = np.random.choice(len(stay_candidates), p=weights)
+                    return stay_candidates[selected_idx][1]
+            
+            # Fallback: find next operational period
+            return self._find_next_operational_stay(booking_date, stay_length)
         
-        return stay_start_date
+        # Year-round hotel: simple selection
+        advance_days = random.randint(min_advance_days, max_advance_days)
+        return booking_date + timedelta(days=advance_days)
+    
+    def _find_next_operational_stay(self, booking_date, stay_length):
+        """Find the next available date in operational season"""
+        current_year = booking_date.year
+        
+        # Find next operational period
+        first_op_month = min(self.config.OPERATIONAL_MONTHS)
+        last_op_month = max(self.config.OPERATIONAL_MONTHS)
+        
+        # Check this year first
+        if booking_date.month < first_op_month:
+            # Before season - use this year
+            season_start = datetime(current_year, first_op_month, 1)
+        elif booking_date.month > last_op_month:
+            # After season - use next year
+            season_start = datetime(current_year + 1, first_op_month, 1)
+        else:
+            # During season - use current date + 1 day
+            season_start = booking_date + timedelta(days=1)
+        
+        # Add some randomization to avoid all bookings on same date
+        if season_start.month in self.config.OPERATIONAL_MONTHS:
+            days_to_add = random.randint(0, 30)
+            candidate = season_start + timedelta(days=days_to_add)
+            
+            # Ensure we stay in operational months
+            if candidate.month in self.config.OPERATIONAL_MONTHS:
+                return candidate
+        
+        return season_start
+    
+    def _validate_seasonal_stay(self, stay_start_date, stay_end_date, stay_length, booking_date):
+        """Ensure entire stay falls within operational season for seasonal hotels"""
+        # Check if stay dates are valid
+        if (stay_start_date.month in self.config.OPERATIONAL_MONTHS and 
+            stay_end_date.month in self.config.OPERATIONAL_MONTHS):
+            return stay_start_date, stay_end_date, stay_length
+        
+        # If end date spills over, truncate stay
+        if (stay_start_date.month in self.config.OPERATIONAL_MONTHS and 
+            stay_end_date.month not in self.config.OPERATIONAL_MONTHS):
+            
+            last_op_month = max(self.config.OPERATIONAL_MONTHS)
+            if stay_start_date.month <= last_op_month:
+                # Find last day of operational season
+                if last_op_month in [4, 6, 9, 11]:
+                    last_day = 30
+                elif last_op_month == 2:
+                    last_day = 29 if stay_start_date.year % 4 == 0 else 28
+                else:
+                    last_day = 31
+                
+                season_end = datetime(stay_start_date.year, last_op_month, last_day)
+                
+                # Adjust stay length
+                max_nights = (season_end - stay_start_date).days
+                new_stay_length = min(stay_length, max(1, max_nights))
+                
+                return stay_start_date, stay_start_date + timedelta(days=int(new_stay_length)), new_stay_length
+        
+        # If completely outside operational months, this shouldn't happen
+        # but return original values
+        return stay_start_date, stay_end_date, stay_length

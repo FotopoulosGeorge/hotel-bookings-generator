@@ -11,7 +11,49 @@ from config import HotelBusinessConfig
 def create_test_scenarios():
     """Create different configuration scenarios for testing"""
     
-    # Scenario 1: High Competition Market (more promotions, higher cancellations)
+    # Scenario 1: Standard Seasonal Hotel (improved distribution)
+    standard_config = HotelBusinessConfig()
+    standard_config.OPERATION_MODE = 'seasonal'
+    # Uses default SEASONAL_STAY_DISTRIBUTION from config to prevent spikes
+    
+    # Scenario 2: Year-Round Hotel
+    year_round_config = HotelBusinessConfig()
+    year_round_config.OPERATION_MODE = 'year_round'
+    year_round_config.OPERATIONAL_MONTHS = list(range(1, 13))  # All months
+    
+    # Adjust demand patterns for year-round operations
+    year_round_config.SEASONAL_DEMAND_MULTIPLIERS = {
+        1: 0.70,   # January - post-holiday slowdown
+        2: 0.75,   # February - winter low season
+        3: 0.85,   # March - spring pickup
+        4: 0.90,   # April - pre-summer
+        5: 0.95,   # May - shoulder season
+        6: 1.00,   # June - summer begins
+        7: 1.10,   # July - peak summer
+        8: 1.10,   # August - peak summer
+        9: 0.90,   # September - fall shoulder
+        10: 0.85,  # October - fall season
+        11: 0.75,  # November - pre-holiday low
+        12: 0.95   # December - holiday season
+    }
+    
+    # Year-round pricing adjustments
+    year_round_config.DATA_CONFIG['seasonal_pricing_multipliers'] = {
+        1: 0.85,   # January: -15%
+        2: 0.85,   # February: -15%
+        3: 0.95,   # March: -5%
+        4: 1.00,   # April: base
+        5: 1.05,   # May: +5%
+        6: 1.10,   # June: +10%
+        7: 1.20,   # July: +20% (peak)
+        8: 1.20,   # August: +20% (peak)
+        9: 1.00,   # September: base
+        10: 0.90,  # October: -10%
+        11: 0.85,  # November: -15%
+        12: 1.15   # December: +15% (holidays)
+    }
+    
+    # Scenario 3: High Competition Market (more promotions, higher cancellations)
     high_competition_config = HotelBusinessConfig()
     high_competition_config.CONNECTED_AGENT_PROMO_RATE = 0.90  # 90% promotional
     high_competition_config.ONLINE_DIRECT_PROMO_RATE = 0.85    # 85% promotional
@@ -24,8 +66,9 @@ def create_test_scenarios():
     # More aggressive overbooking
     high_competition_config.OVERBOOKING_CONFIG['base_overbooking_rate'] = 0.15
     
-    # Scenario 2: Luxury Property (higher prices, lower volume, lower cancellations)
+    # Scenario 4: Luxury Seasonal Property (higher prices, lower volume, lower cancellations)
     luxury_config = HotelBusinessConfig()
+    luxury_config.OPERATION_MODE = 'seasonal'
     luxury_config.BASE_PRICES = {
         'Standard': 300, 'Deluxe': 450, 'Suite': 650, 'Premium': 900
     }
@@ -46,8 +89,10 @@ def create_test_scenarios():
     # Conservative overbooking for luxury
     luxury_config.OVERBOOKING_CONFIG['base_overbooking_rate'] = 0.05
     
-    # Scenario 3: Budget Property (lower prices, higher volume, higher cancellations)
+    # Scenario 5: Budget Year-Round Property (lower prices, higher volume, higher cancellations)
     budget_config = HotelBusinessConfig()
+    budget_config.OPERATION_MODE = 'year_round'
+    budget_config.OPERATIONAL_MONTHS = list(range(1, 13))
     budget_config.BASE_PRICES = {
         'Standard': 80, 'Deluxe': 120, 'Suite': 180, 'Premium': 220
     }
@@ -68,7 +113,14 @@ def create_test_scenarios():
     # Aggressive overbooking for budget
     budget_config.OVERBOOKING_CONFIG['base_overbooking_rate'] = 0.20
     
-    # Scenario 4: Conservative Property (minimal overbooking, low cancellations)
+    # Budget year-round demand patterns
+    budget_config.SEASONAL_DEMAND_MULTIPLIERS = {
+        1: 0.80, 2: 0.85, 3: 0.90, 4: 0.95,
+        5: 1.00, 6: 1.05, 7: 1.10, 8: 1.10,
+        9: 1.00, 10: 0.90, 11: 0.85, 12: 0.95
+    }
+    
+    # Scenario 6: Conservative Property (minimal overbooking, low cancellations)
     conservative_config = HotelBusinessConfig()
     
     # Lower cancellation rates
@@ -78,18 +130,37 @@ def create_test_scenarios():
     # Minimal overbooking
     conservative_config.OVERBOOKING_CONFIG['base_overbooking_rate'] = 0.03
     
-    # Scenario 5: Seasonal Resort (extreme seasonality)
-    seasonal_config = HotelBusinessConfig()
-    seasonal_config.SEASONAL_DEMAND_MULTIPLIERS = {
-        5: 0.4,   # May - very low
-        6: 0.6,   # June - building
-        7: 1.3,   # July - extreme peak
-        8: 1.3,   # August - extreme peak  
-        9: 0.4    # September - very low
+    # Scenario 7: Seasonal Resort with Better Distribution
+    seasonal_resort_config = HotelBusinessConfig()
+    seasonal_resort_config.OPERATION_MODE = 'seasonal'
+    
+    # Extreme seasonality in booking patterns (when people book)
+    seasonal_resort_config.SEASONAL_DEMAND_MULTIPLIERS = {
+        1: 0.50,   # January - steady early bookings
+        2: 0.60,   # February - gradual increase
+        3: 0.75,   # March - building up
+        4: 0.90,   # April - pre-season rush
+        5: 0.60,   # May - lower because many already booked
+        6: 0.40,   # June - mostly full, fewer bookings
+        7: 0.25,   # July - very few spots left
+        8: 0.20,   # August - minimal availability
+        9: 0.30,   # September - last minute deals
+        10: 0.55,  # October - early birds for next year
+        11: 0.70,  # November - campaign season
+        12: 0.65   # December - holiday bookings for next summer
+    }
+    
+    # Custom stay distribution to prevent May spike
+    seasonal_resort_config.SEASONAL_STAY_DISTRIBUTION = {
+        5: 0.15,   # May - reduced to prevent spike
+        6: 0.20,   # June - moderate
+        7: 0.30,   # July - peak
+        8: 0.28,   # August - still peak
+        9: 0.07    # September - tail
     }
     
     # Higher pricing during peak season
-    seasonal_config.DATA_CONFIG['seasonal_pricing_multipliers'] = {
+    seasonal_resort_config.DATA_CONFIG['seasonal_pricing_multipliers'] = {
         7: 1.8,   # July: +80%
         8: 1.8,   # August: +80%
         5: 0.8,   # May: -20%
@@ -98,12 +169,15 @@ def create_test_scenarios():
     }
     
     # More aggressive overbooking during peak
-    seasonal_config.OVERBOOKING_CONFIG['seasonal_overbooking_multipliers'] = {
+    seasonal_resort_config.OVERBOOKING_CONFIG['seasonal_overbooking_multipliers'] = {
         5: 0.5, 6: 0.8, 7: 1.5, 8: 1.5, 9: 0.5
     }
     
-    # Scenario 6: Business Hotel (weekday focused)
+    # Scenario 8: Business Hotel (year-round, weekday focused)
     business_config = HotelBusinessConfig()
+    business_config.OPERATION_MODE = 'year_round'
+    business_config.OPERATIONAL_MONTHS = list(range(1, 13))
+    
     business_config.WEEKLY_DEMAND_MULTIPLIERS = {
         0: 1.2,   # Monday - high business travel
         1: 1.3,   # Tuesday - high business travel
@@ -112,6 +186,13 @@ def create_test_scenarios():
         4: 0.9,   # Friday - lower business travel
         5: 0.6,   # Saturday - low business travel
         6: 0.7    # Sunday - low business travel
+    }
+    
+    # Stable year-round demand with slight variations
+    business_config.SEASONAL_DEMAND_MULTIPLIERS = {
+        1: 0.90, 2: 0.95, 3: 1.00, 4: 1.00,
+        5: 0.95, 6: 0.90, 7: 0.80, 8: 0.75,  # Lower summer (vacation season)
+        9: 1.00, 10: 1.05, 11: 0.95, 12: 0.85
     }
     
     # More connected agent bookings for business travelers
@@ -128,12 +209,13 @@ def create_test_scenarios():
         business_config.CANCELLATION_CONFIG[segment]['base_cancellation_rate'] *= 0.8
     
     return {
-        'standard': HotelBusinessConfig(),
+        'standard': standard_config,
+        'year_round': year_round_config,
         'high_competition': high_competition_config,
         'luxury': luxury_config,
         'budget': budget_config,
         'conservative': conservative_config,
-        'seasonal_resort': seasonal_config,
+        'seasonal_resort': seasonal_resort_config,
         'business_hotel': business_config
     }
 
@@ -141,13 +223,14 @@ def create_test_scenarios():
 def get_scenario_description(scenario_name):
     """Get a description of what each scenario represents"""
     descriptions = {
-        'standard': "Baseline hotel configuration with standard industry parameters",
+        'standard': "Seasonal hotel (May-Sep) with balanced distribution to prevent spikes",
+        'year_round': "Year-round hotel with natural seasonal demand variations",
         'high_competition': "Highly competitive market with aggressive promotions and higher cancellation rates",
-        'luxury': "High-end luxury property with premium pricing, lower volume, and conservative policies",
-        'budget': "Budget-friendly property with lower prices, higher volume, and aggressive overbooking",
+        'luxury': "High-end luxury seasonal property with premium pricing and conservative policies",
+        'budget': "Budget-friendly year-round property with lower prices and higher volume",
         'conservative': "Risk-averse property with minimal overbooking and low cancellation rates",
-        'seasonal_resort': "Seasonal resort with extreme demand variations and dynamic pricing",
-        'business_hotel': "Business-focused hotel with weekday demand patterns and corporate booking behavior"
+        'seasonal_resort': "Seasonal resort with optimized stay distribution and extreme demand variations",
+        'business_hotel': "Year-round business hotel with weekday demand patterns and corporate behavior"
     }
     return descriptions.get(scenario_name, "Unknown scenario")
 
@@ -159,6 +242,8 @@ def print_scenario_comparison(scenarios):
     print("="*100)
     
     metrics = [
+        ('Operation Mode', lambda c: getattr(c, 'OPERATION_MODE', 'seasonal')),
+        ('Operational Months', lambda c: f"{len(c.OPERATIONAL_MONTHS)} months" if len(c.OPERATIONAL_MONTHS) < 12 else "Year-round"),
         ('Base Daily Demand', lambda c: c.DATA_CONFIG['base_daily_demand']),
         ('Standard Room Base Price', lambda c: c.BASE_PRICES['Standard']),
         ('Premium Room Base Price', lambda c: c.BASE_PRICES['Premium']),
@@ -170,7 +255,7 @@ def print_scenario_comparison(scenarios):
     ]
     
     # Print header
-    header = f"{'Metric':<25}"
+    header = f"{'Metric':<28}"
     for scenario_name in scenarios.keys():
         header += f"{scenario_name:<15}"
     print(header)
@@ -178,7 +263,7 @@ def print_scenario_comparison(scenarios):
     
     # Print each metric
     for metric_name, metric_func in metrics:
-        row = f"{metric_name:<25}"
+        row = f"{metric_name:<28}"
         for scenario_name, config in scenarios.items():
             try:
                 value = metric_func(config)
