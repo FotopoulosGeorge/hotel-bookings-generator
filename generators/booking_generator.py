@@ -353,5 +353,22 @@ class ConfigurableHotelBookingGenerator:
         self.validate_data(bookings, campaigns)
         self.save_data(bookings, campaigns, customers, attribution_data, baseline_demand)
         
+        # Load the generated data
+        df = pd.read_csv('output/historical_bookings.csv')
+        df['stay_start_date'] = pd.to_datetime(df['stay_start_date'])
+        df['booking_date'] = pd.to_datetime(df['booking_date'])
+
+        # Check STAY month distribution (this is what matters)
+        df['stay_month'] = df['stay_start_date'].dt.month
+        print("STAY Month Distribution:")
+        print(df['stay_month'].value_counts().sort_index())
+        print("\nAs percentages:")
+        print(df['stay_month'].value_counts(normalize=True).sort_index() * 100)
+
+        # Check BOOKING month distribution (for comparison)
+        df['booking_month'] = df['booking_date'].dt.month
+        print("\n\nBOOKING Month Distribution:")
+        print(df['booking_month'].value_counts().sort_index())
+
         print(f"\n🎉 Data generation complete!")
         return bookings, campaigns, customers, attribution_data, baseline_demand
