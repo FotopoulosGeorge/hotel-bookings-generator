@@ -322,7 +322,42 @@ class ConfigurableHotelBookingGenerator:
                         percentage = (count / year_total * 100) if year_total > 0 else 0
                         target = self.monthly_capacity_targets.get(month, 0) * 100
                         print(f"     Month {month}: {count:,} stays ({percentage:.1f}% actual vs {target:.1f}% target)")
+                        
+        distribution_stats = self.booking_logic.get_distribution_stats()
+    
+        print(f"\n📅 STAY DISTRIBUTION ANALYSIS")
+        print("=" * 50)
+        print(f"   Total stays generated: {distribution_stats['total_stays']:,}")
         
+        target_dist = distribution_stats['target_distribution']
+        current_dist = distribution_stats['current_distribution']
+        
+        print(f"\n   Target vs Actual Distribution:")
+        month_names = {5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug', 9: 'Sep', 
+                    1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 
+                    10: 'Oct', 11: 'Nov', 12: 'Dec'}
+        
+        for month in sorted(target_dist.keys()):
+            target_pct = target_dist[month] * 100
+            actual_pct = current_dist.get(month, 0) * 100
+            deviation = actual_pct - target_pct
+            
+            month_name = month_names.get(month, f'Month {month}')
+            status = "✅" if abs(deviation) < 3 else "⚠️" if abs(deviation) < 6 else "❌"
+            
+            print(f"   {month_name}: {actual_pct:5.1f}% (target: {target_pct:4.1f}%, deviation: {deviation:+5.1f}%) {status}")
+        
+        # Check for May spike specifically
+        may_actual = current_dist.get(5, 0) * 100
+        may_target = target_dist.get(5, 0) * 100
+        
+        if may_actual > 25:
+            print(f"\n   ❌ MAY SPIKE DETECTED: {may_actual:.1f}% (should be ~{may_target:.1f}%)")
+        elif may_actual > may_target + 5:
+            print(f"\n   ⚠️ May slightly elevated: {may_actual:.1f}% (target: {may_target:.1f}%)")
+        else:
+            print(f"\n   ✅ May distribution looks good: {may_actual:.1f}% (target: {may_target:.1f}%)")
+
         return bookings, attribution_data
     
     def validate_data(self, bookings, campaigns):

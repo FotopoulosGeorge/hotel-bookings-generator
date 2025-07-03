@@ -101,4 +101,5 @@ docs/_build/
 
 tests/
 verify_setup.py
-ml_visualize_data.py
+quick_test_distribution.py
+ml_visualizations/
