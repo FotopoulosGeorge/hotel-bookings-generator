@@ -42,11 +42,12 @@ st.markdown("""
         margin: 0.5rem 0;
     }
     .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
+        background-color: rgb(232, 244, 253);
+        border: 1px solid rgb(52, 152, 219);
         border-radius: 0.5rem;
         padding: 1rem;
         margin: 1rem 0;
+        color: #222 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -189,70 +190,69 @@ def main():
             help="Add a prefix to your files, e.g. 'luxury_' → 'luxury_bookings.csv'"
         )
     
-    # Main content area
-    col1, col2 = st.columns([2, 1])
+ 
     
-    with col1:
-        st.header("📊 Data Preview")
-        
-        if config:
-            # Calculate estimates
-            estimates = calculate_estimates(config)
-            
-            # Display metrics in a nice grid
-            metric1, metric2, metric3, metric4 = st.columns(4)
-            
-            with metric1:
-                st.metric(
-                    "📈 Bookings", 
-                    f"{estimates['bookings']:,}",
-                    help="Estimated number of booking records"
-                )
-            with metric2:
-                st.metric(
-                    "💰 Revenue", 
-                    f"${estimates['revenue']:,.0f}",
-                    help="Total estimated revenue"
-                )
-            with metric3:
-                st.metric(
-                    "🎯 Campaigns", 
-                    f"{estimates['campaigns']}",
-                    help="Number of promotional campaigns"
-                )
-            with metric4:
-                st.metric(
-                    "👥 Customers", 
-                    f"{config.DATA_CONFIG['total_customers']:,}",
-                    help="Total customer profiles"
-                )
-            
-            # Configuration summary
-            with st.expander("📋 Configuration Summary", expanded=False):
-                summary_col1, summary_col2 = st.columns(2)
-                
-                with summary_col1:
-                    st.write("**Room Pricing:**")
-                    for room_type, price in config.BASE_PRICES.items():
-                        st.write(f"• {room_type}: ${price}")
-                    
-                    st.write(f"**Operation:** {config.OPERATION_MODE}")
-                    st.write(f"**Daily Demand:** {config.DATA_CONFIG['base_daily_demand']}")
-                
-                with summary_col2:
-                    st.write("**Customer Segments:**")
-                    for segment, data in config.CUSTOMER_SEGMENTS.items():
-                        percentage = data['market_share'] * 100
-                        st.write(f"• {segment}: {percentage:.0f}%")
-                    
-                    st.write(f"**Simulation Years:** {', '.join(map(str, config.SIMULATION_YEARS))}")
     
-    with col2:
-        st.header("🚀 Generate")
+    st.header("📊 Data Preview")
+    
+    if config:
+        # Calculate estimates
+        estimates = calculate_estimates(config)
         
-        # Big generate button
-        if st.button("🎲 Generate Dataset", type="primary", use_container_width=True):
-            generate_and_download(config, output_prefix)
+        # Display metrics in a nice grid
+        metric1, metric2, metric3, metric4 = st.columns(4)
+        
+        with metric1:
+            st.metric(
+                "📈 Bookings", 
+                f"{estimates['bookings']:,}",
+                help="Estimated number of booking records"
+            )
+        with metric2:
+            st.metric(
+                "💰 Revenue", 
+                f"${estimates['revenue']:,.0f}",
+                help="Total estimated revenue"
+            )
+        with metric3:
+            st.metric(
+                "🎯 Campaigns", 
+                f"{estimates['campaigns']}",
+                help="Number of promotional campaigns"
+            )
+        with metric4:
+            st.metric(
+                "👥 Customers", 
+                f"{config.DATA_CONFIG['total_customers']:,}",
+                help="Total customer profiles"
+            )
+        
+        # Configuration summary
+        with st.expander("📋 Configuration Summary", expanded=False):
+            summary_col1, summary_col2 = st.columns(2)
+            
+            with summary_col1:
+                st.write("**Room Pricing:**")
+                for room_type, price in config.BASE_PRICES.items():
+                    st.write(f"• {room_type}: ${price}")
+                
+                st.write(f"**Operation:** {config.OPERATION_MODE}")
+                st.write(f"**Daily Demand:** {config.DATA_CONFIG['base_daily_demand']}")
+            
+            with summary_col2:
+                st.write("**Customer Segments:**")
+                for segment, data in config.CUSTOMER_SEGMENTS.items():
+                    percentage = data['market_share'] * 100
+                    st.write(f"• {segment}: {percentage:.0f}%")
+                
+                st.write(f"**Simulation Years:** {', '.join(map(str, config.SIMULATION_YEARS))}")
+    
+    
+    st.header("🚀 Generate")
+    
+    # Big generate button
+    if st.button("🎲 Generate Dataset", type="primary", use_container_width=True):
+        generate_and_download(config, output_prefix)
     
     # Information tabs
     st.header("📚 About This Tool")
@@ -403,8 +403,6 @@ def generate_and_download(config, output_prefix):
         progress_bar.progress(100)
         status_text.text("✅ Generation complete!")
         
-        # Success message
-        st.balloons()  # Celebratory animation!
         
         st.markdown("""
         <div class="success-box">
@@ -478,38 +476,38 @@ def generate_and_download(config, output_prefix):
         # Quick visualizations
         st.header("📊 Quick Analysis")
         
-        viz_col1, viz_col2 = st.columns(2)
         
-        with viz_col1:
-            # Monthly booking pattern
-            df_bookings['stay_month'] = pd.to_datetime(df_bookings['stay_start_date']).dt.month
-            monthly_counts = df_bookings['stay_month'].value_counts().sort_index()
-            
-            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            monthly_data = [monthly_counts.get(i, 0) for i in range(1, 13)]
-            
-            fig1 = px.bar(
-                x=months,
-                y=monthly_data,
-                title="📅 Bookings by Month",
-                color=monthly_data,
-                color_continuous_scale="Blues"
-            )
-            fig1.update_layout(showlegend=False)
-            st.plotly_chart(fig1, use_container_width=True)
         
-        with viz_col2:
-            # Channel distribution
-            channel_counts = df_bookings['booking_channel'].value_counts()
-            
-            fig2 = px.pie(
-                values=channel_counts.values,
-                names=channel_counts.index,
-                title="🏢 Booking Channels",
-                color_discrete_sequence=px.colors.qualitative.Set3
-            )
-            st.plotly_chart(fig2, use_container_width=True)
+        st.subheader("📅 Bookings by Month")
+        # Monthly booking pattern
+        df_bookings['stay_month'] = pd.to_datetime(df_bookings['stay_start_date']).dt.month
+        monthly_counts = df_bookings['stay_month'].value_counts().sort_index()
+        
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        monthly_data = [monthly_counts.get(i, 0) for i in range(1, 13)]
+        
+        fig1 = px.bar(
+            x=months,
+            y=monthly_data,
+            title="📅 Bookings by Month",
+            color=monthly_data,
+            color_continuous_scale="Blues"
+        )
+        fig1.update_layout(showlegend=False)
+        st.plotly_chart(fig1, use_container_width=True)
+        
+        st.subheader("🏢 Booking Channels")
+        # Channel distribution
+        channel_counts = df_bookings['booking_channel'].value_counts()
+        
+        fig2 = px.pie(
+            values=channel_counts.values,
+            names=channel_counts.index,
+            title="🏢 Booking Channels",
+            color_discrete_sequence=px.colors.qualitative.Set3
+        )
+        st.plotly_chart(fig2, use_container_width=True)
         
         # Data quality score
         st.header("🎯 Data Quality Assessment")
