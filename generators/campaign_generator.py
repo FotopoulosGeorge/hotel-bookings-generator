@@ -212,7 +212,7 @@ class CampaignGenerator:
                 target_season_start = datetime(current_year + 1, 5, 1)
             
             advance_days = (target_season_start - booking_date).days
-            if advance_days < campaign.get('advance_booking_requirements', 90):
+            if advance_days < campaign.get('advance_booking_requirements', 30):
                 return False
         
         return True

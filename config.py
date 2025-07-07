@@ -141,7 +141,7 @@ class HotelBusinessConfig:
         self.CUSTOMER_SEGMENTS = {
             'Early_Planner': {
                 'market_share': 0.45,
-                'advance_booking_days': (60, 150),
+                'advance_booking_days': (30, 150),
                 'price_sensitivity': 0.8,
                 'channel_preference_weights': {
                     'Connected_Agent': 0.85,
@@ -225,7 +225,7 @@ class HotelBusinessConfig:
                 'discount_range': (0.25, 0.40),
                 'target_segments': ['Early_Planner', 'Flexible'],
                 'preferred_channel': 'Connected_Agent',
-                'advance_booking_requirement': 90,
+                'advance_booking_requirement': 30,
                 'capacity_range': (200, 500),
                 'influence_period_days': 120,
                 'seasonal_stay_weights': {
