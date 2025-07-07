@@ -1,337 +1,217 @@
 # Hotel Booking Data Generator
 
-A sophisticated synthetic data generation system that creates realistic hotel booking datasets with complex business logic, customer behavior patterns, and campaign attribution modeling.
-
-## 🏗️ Architecture Overview
-
-The system uses a **modular architecture** designed for maintainability, testability, and extensibility:
-
-```
-hotel-booking-generator/
-├── 📋 config.py                    # Business configuration and parameters
-├── 🚀 main.py                     # CLI entry point and scenario execution
-├── 🎯 scenarios.py                # Predefined business scenarios
-├── 📊 utils.py                    # Analysis and utility functions
-├── 📈 visualize_data.py           # Comprehensive visualization tool
-├── 🏗️ generators/                 # Core generation logic
-│   ├── booking_generator.py       # Main orchestration class
-│   ├── campaign_generator.py      # Campaign creation and management
-│   ├── customer_generator.py      # Customer profiles and segments
-│   ├── pricing_engine.py          # Pricing, discounts, attribution
-│   ├── inventory_manager.py       # Room inventory and overbooking
-│   └── booking_logic.py           # Core booking creation logic
-├── ⚙️ processors/                  # Data processing and validation
-│   └── data_processors.py         # Post-processing, validation, I/O
-├── 📚 examples/                   # Usage examples and tutorials
-│   └── usage_examples.py         # Comprehensive usage demonstrations
-└── 🧪 tests/                      # Test suite
-    └── test_refactoring.py        # Refactoring verification tests
-```
+A sophisticated synthetic data generation system that creates realistic hotel booking datasets with complex business logic, customer behavior patterns, and campaign attribution modeling. Perfect for data science, machine learning, and revenue management applications.
 
 ## 🚀 Quick Start
 
-### Basic Usage
-
 ```bash
-# Generate data with default scenario
+# Install dependencies
+pip install -r requirements.txt
+
+# Generate standard hotel data
 python main.py
 
-# Use a specific scenario
+# Generate specific scenario
 python main.py --scenario luxury
 
-# Generate with custom file prefix
-python main.py --scenario budget --output-prefix "budget_hotel_"
-```
-
-### Available Scenarios
-
-```bash
-# List all available scenarios
+# See all available scenarios
 python main.py --list-scenarios
-
-# Compare scenario configurations
-python main.py --compare-scenarios
-
-# Validate configurations only
-python main.py --validate-only
 ```
+
+This creates:
+- `output/historical_bookings.csv` - Main booking dataset (5K-15K records)
+- `output/campaigns_run.csv` - Campaign performance data
+- `output/customer_segments.csv` - Customer profiles
+- `output/attribution_ground_truth.csv` - ML attribution labels
 
 ## 🎯 Available Scenarios
 
-| Scenario | Description | Key Characteristics |
-|----------|-------------|-------------------|
-| **standard** | Baseline hotel operations | Standard industry parameters |
-| **luxury** | High-end luxury property | Premium pricing, conservative policies |
-| **budget** | Budget-friendly property | Lower prices, aggressive overbooking |
-| **high_competition** | Highly competitive market | Aggressive promotions, higher cancellations |
-| **seasonal_resort** | Seasonal resort operations | Extreme demand variations |
-| **business_hotel** | Business-focused hotel | Weekday demand patterns |
-| **conservative** | Risk-averse property | Minimal overbooking, low cancellations |
+| Scenario | Description | Key Features |
+|----------|-------------|--------------|
+| **standard** | Seasonal hotel (May-Sep) | Balanced distribution, realistic patterns |
+| **luxury** | High-end property | Premium pricing, conservative policies |
+| **year_round** | Business hotel | 12-month operations, varied demand |
+
+## 🏗️ Architecture
+
+The system uses a modular architecture for maintainability and extensibility:
+
+```
+generators/          # Core data generation logic
+├── booking_generator.py    # Main orchestration
+├── campaign_generator.py   # Promotional campaigns  
+├── customer_generator.py   # Customer profiles & behavior
+├── pricing_engine.py       # Dynamic pricing & attribution
+├── inventory_manager.py    # Capacity & overbooking logic
+└── booking_logic.py        # Stay dates & room selection
+
+processors/          # Data processing & validation
+└── data_processors.py      # Post-processing, I/O, validation
+
+examples/           # Usage examples & tutorials
+utils.py           # Analysis & utility functions
+validator.py       # Comprehensive data validation
+```
+
+## 💡 Key Features
+
+### 🏨 Realistic Business Logic
+- **Customer Segments**: Early Planner, Last Minute, Flexible (with distinct behaviors)
+- **Seasonal Patterns**: Operational seasons, demand fluctuations
+- **Revenue Management**: Dynamic pricing, overbooking strategies
+- **Campaign Types**: Early Booking, Flash Sales, Special Offers
+
+### 📊 ML-Ready Outputs
+- **Clean Datasets**: No missing critical values, proper data types
+- **Attribution Ground Truth**: True causal impact for model validation
+- **Feature Engineering**: Lead times, seasonality, customer behaviors
+- **Quality Validation**: Automated checks with 0-100 ML readiness score
+
+### 🎛️ Highly Configurable
+- **Pricing Strategies**: Periodic pricing, seasonal adjustments
+- **Customer Behavior**: Segment distributions, cancellation patterns  
+- **Campaign Strategy**: Discount ranges, targeting rules, capacity limits
+- **Operational Parameters**: Capacity, overbooking, seasonal operations
+
+## 📈 Data Analysis & Validation
+
+### Generate Comprehensive Validation Report
+```bash
+python validator.py --prefix "luxury_"
+```
+
+Creates detailed validation suite with:
+- ✅ Temporal pattern analysis
+- ✅ Business logic validation  
+- ✅ Campaign effectiveness review
+- ✅ Statistical property checks
+- ✅ ML readiness assessment
+
+### Quick Data Analysis
+```python
+from utils import load_generated_data, analyze_booking_patterns
+
+# Load and analyze data
+data = load_generated_data('luxury_')
+analysis = analyze_booking_patterns(data['bookings'])
+
+print(f"Total Revenue: ${analysis['total_revenue']:,.2f}")
+print(f"Campaign Participation: {analysis['campaign_participation_rate']:.1%}")
+```
 
 ## 🔧 Programmatic Usage
 
 ### Basic Generation
-
 ```python
-from generators import ConfigurableHotelBookingGenerator
 from config import HotelBusinessConfig
+from generators import ConfigurableHotelBookingGenerator
 
-# Create configuration
+# Create and customize configuration
 config = HotelBusinessConfig()
+config.BASE_PRICES = {'Standard': 200, 'Premium': 400}
+config.DATA_CONFIG['base_daily_demand'] = 25
 
 # Generate data
 generator = ConfigurableHotelBookingGenerator(config)
 bookings, campaigns, customers, attribution, demand = generator.generate_all_data()
 ```
 
-### Using Scenarios
-
+### Using Predefined Scenarios
 ```python
 from scenarios import create_test_scenarios
 
-# Load predefined scenarios
 scenarios = create_test_scenarios()
 luxury_config = scenarios['luxury']
 
-# Generate luxury hotel data
 generator = ConfigurableHotelBookingGenerator(luxury_config)
 data = generator.generate_all_data()
 ```
 
-### Using Individual Components
-
+### Custom Scenarios
 ```python
-from generators.campaign_generator import CampaignGenerator
-from generators.customer_generator import CustomerGenerator
-from generators.pricing_engine import PricingEngine
-
+# Create boutique hotel scenario
 config = HotelBusinessConfig()
+config.BASE_PRICES = {'Standard': 300, 'Suite': 600}
+config.CUSTOMER_SEGMENTS['Early_Planner']['market_share'] = 0.70
+config.OVERBOOKING_CONFIG['base_overbooking_rate'] = 0.03
 
-# Use components independently
-campaign_gen = CampaignGenerator(config)
-campaigns = campaign_gen.generate_campaigns()
-
-customer_gen = CustomerGenerator(config)
-customers = customer_gen.generate_customers()
-
-pricing = PricingEngine(config)
-base_price = pricing.get_base_price_for_date(datetime.now(), 'Standard')
+# Generate with custom prefix
+python main.py --scenario luxury --output-prefix "boutique_"
 ```
 
-## 📊 Output Data Schema
+## 🎓 Use Cases
 
-### Historical Bookings (`historical_bookings.csv`)
-```
-booking_id, customer_id, booking_date, stay_start_date, stay_end_date,
-stay_length, room_type, customer_segment, booking_channel,
-base_price, final_price, discount_amount, campaign_id,
-attribution_score, incremental_flag, is_cancelled, cancellation_date
-```
-
-### Campaign Performance (`campaigns_run.csv`)
-```
-campaign_id, campaign_type, start_date, end_date, discount_percentage,
-target_segments, channel, capacity_limit, actual_bookings, incremental_bookings
-```
-
-### Customer Profiles (`customer_segments.csv`)
-```
-customer_id, segment, price_sensitivity, planning_horizon,
-channel_preference, loyalty_status, campaign_exposures, booking_history
-```
-
-### Attribution Ground Truth (`attribution_ground_truth.csv`)
-```
-booking_id, true_attribution_score, causal_campaign_id,
-counterfactual_price, would_have_booked_anyway
-```
-
-## 🏨 Business Logic Features
-
-### Customer Segments
-- **Early Planner**: Books 60-150 days in advance, price-sensitive, prefers agents
-- **Last Minute**: Books 1-30 days in advance, less price-sensitive, prefers online
-- **Flexible**: Books 14-90 days in advance, moderate price sensitivity
-
-### Campaign Types
-- **Early Booking**: Long-term campaigns targeting operational season
-- **Flash Sale**: Short-term urgency campaigns with high discounts
-- **Special Offer**: Medium-term shoulder season promotions
-
-### Pricing Strategy
-- **Periodic Base Pricing**: Time-based rate changes across years
-- **Seasonal Adjustments**: Peak season pricing (July-August)
-- **Segment-Specific Pricing**: Early planner discounts, last-minute premiums
-- **Campaign Discounts**: Structured promotional pricing
+### Data Science & ML
+- **Predictive Modeling**: Revenue forecasting, demand prediction
+- **A/B Testing**: Campaign strategy comparison
+- **Feature Engineering**: Customer behavior analysis
+- **Model Validation**: Attribution model testing with ground truth
 
 ### Revenue Management
-- **Dynamic Inventory**: Real-time capacity tracking
-- **Overbooking Strategy**: Configurable risk-based overbooking
-- **Cancellation Modeling**: Segment-specific cancellation patterns
-- **Attribution Modeling**: Time-decay campaign attribution
+- **Pricing Strategy**: Dynamic pricing optimization
+- **Campaign Analysis**: Promotional effectiveness measurement  
+- **Capacity Management**: Overbooking strategy evaluation
+- **Customer Segmentation**: Behavior pattern analysis
 
-## 📈 Data Analysis and Visualization
+### Education & Training
+- **ML Practice**: Clean, labeled datasets for learning
+- **Business Analytics**: Realistic hospitality data
+- **Data Quality**: Validation methodology examples
 
-### Generate Visualizations
+## 📊 Data Schema
 
-```bash
-# Create comprehensive visualizations
-python visualize_data.py
-
-# Visualize specific scenario data
-python visualize_data.py --prefix "luxury_"
+### Bookings Dataset (`historical_bookings.csv`)
+```
+booking_id, customer_id, booking_date, stay_start_date, stay_end_date,
+room_type, customer_segment, booking_channel, base_price, final_price,
+discount_amount, campaign_id, attribution_score, incremental_flag,
+is_cancelled, cancellation_date
 ```
 
-### Analysis Tools
+### Key Metrics Generated
+- **5,000-15,000 bookings** per scenario
+- **Revenue**: $2-10M+ depending on scenario
+- **Campaign Participation**: 60-80% promotional rate
+- **Cancellation Rate**: 8-15% depending on segment
+- **Seasonal Distribution**: Realistic patterns with Jul-Aug peaks
 
-```python
-from utils import load_generated_data, analyze_booking_patterns, create_summary_report
+## 🚨 Data Quality Assurance
 
-# Load and analyze data
-data = load_generated_data('luxury_')
-analysis = analyze_booking_patterns(data['bookings'])
-report = create_summary_report(data, 'luxury_analysis.txt')
+Every generated dataset includes:
+- ✅ **Business Rule Validation**: Price hierarchies, date consistency
+- ✅ **Statistical Checks**: Distribution analysis, outlier detection  
+- ✅ **ML Readiness Score**: 0-100 scale with actionable feedback
+- ✅ **Attribution Validation**: Ground truth for model evaluation
+
+Score ≥75 = Ready for ML applications
+
+## 🛠️ Advanced Examples
+
+See `examples/` directory for:
+- **`usage_examples.py`** - Comprehensive usage patterns
+- **`analysis_example.py`** - Data analysis workflows  
+- **`custom_scenario.py`** - Creating custom business scenarios
+
+## 📋 Requirements
+
 ```
-
-## 🎨 Examples and Tutorials
-
-See the `examples/usage_examples.py` file for comprehensive examples including:
-
-1. **Basic Data Generation**: Simple end-to-end generation
-2. **Scenario Usage**: Using predefined business scenarios
-3. **Custom Configuration**: Creating custom hotel configurations
-4. **Component Usage**: Using individual components independently
-5. **Custom Pricing**: Implementing custom pricing strategies
-6. **Inventory Analysis**: Advanced inventory management
-7. **Attribution Analysis**: Campaign attribution modeling
-8. **Performance Comparison**: Comparing scenarios
-
-```bash
-# Run all examples
-python examples/usage_examples.py
+pandas>=1.3.0
+numpy>=1.20.0
+matplotlib>=3.3.0
+seaborn>=0.11.0
+scipy>=1.7.0
+python-dateutil>=2.8.0
 ```
 
 ## 🧪 Testing
 
-### Run Tests
-
 ```bash
-# Run refactoring verification tests
 python tests/test_refactoring.py
-
-# Run specific test class
-python -m unittest tests.test_refactoring.TestRefactoredArchitecture
 ```
 
-### Test Categories
-- **Component Tests**: Individual module functionality
-- **Integration Tests**: Cross-component interactions
-- **End-to-End Tests**: Complete generation pipeline
-- **Backward Compatibility**: Existing interface preservation
+Validates modular architecture and component integration.
 
-## ⚙️ Configuration
-
-### Key Configuration Categories
-
-1. **Property Operations**: Seasons, room types, capacity
-2. **Pricing Strategy**: Base rates, seasonal adjustments, discount ranges
-3. **Customer Segments**: Market shares, behaviors, preferences
-4. **Campaign Strategy**: Types, timing, discount levels, targeting
-5. **Risk Management**: Cancellation rates, overbooking policies
-
-### Custom Configuration Example
-
-```python
-config = HotelBusinessConfig()
-
-# Customize pricing
-config.BASE_PRICES = {
-    'Standard': 180,
-    'Deluxe': 250, 
-    'Suite': 350,
-    'Premium': 450
-}
-
-# Adjust customer segments
-config.CUSTOMER_SEGMENTS['Early_Planner']['market_share'] = 0.65
-
-# Modify operational parameters
-config.DATA_CONFIG['base_daily_demand'] = 25
-config.OVERBOOKING_CONFIG['base_overbooking_rate'] = 0.12
-```
-
-## 🔄 Migration from Previous Version
-
-If upgrading from the monolithic version, see the detailed [Migration Guide](MIGRATION.md) for step-by-step instructions.
-
-### Key Changes
-- Modular architecture with focused components
-- Improved testability and extensibility
-- Enhanced performance and maintainability
-- Backward-compatible main interface
-
-## 📋 Data Quality Features
-
-### Validation Framework
-- **Business Logic Validation**: Price hierarchies, date consistency
-- **Data Quality Checks**: Missing values, outliers, constraint violations
-- **Statistical Validation**: Distribution checks, correlation analysis
-- **ML Readiness Assessment**: Feature balance, normality tests
-
-### Quality Metrics
-- Automatically validates against configuration targets
-- Generates quality reports with actionable insights
-- Provides ML readiness scores and recommendations
-
-## 🎯 Use Cases
-
-### Revenue Management
-- **Dynamic Pricing Analysis**: Test pricing strategies across scenarios
-- **Campaign Attribution**: Measure promotional campaign effectiveness
-- **Overbooking Optimization**: Analyze risk vs. revenue trade-offs
-- **Demand Forecasting**: Generate realistic demand patterns
-
-### Data Science and ML
-- **Feature Engineering**: Rich dataset with temporal and behavioral features
-- **Model Training**: Clean, labeled data for predictive modeling
-- **A/B Testing**: Compare strategies across different scenarios
-- **Synthetic Data Generation**: Privacy-safe dataset for development
-
-### Business Analytics
-- **Customer Segmentation**: Realistic customer behavior patterns
-- **Channel Analysis**: Multi-channel booking behavior
-- **Seasonal Analysis**: Operational season demand patterns
-- **Performance Benchmarking**: Compare against industry scenarios
-
-## 🚀 Performance Characteristics
-
-- **Data Volume**: 5,000-15,000 bookings per scenario (configurable)
-- **Generation Time**: 30-60 seconds for standard scenario
-- **Memory Usage**: ~100MB for large datasets
-- **File Sizes**: 2-10MB CSV files depending on volume
-
-## 🤝 Contributing
-
-The modular architecture makes it easy to extend the system:
-
-- **New Customer Segments**: Add behavioral patterns in `customer_generator.py`
-- **Additional Campaign Types**: Extend campaign logic in `campaign_generator.py`
-- **Complex Pricing Rules**: Enhance pricing engine with new strategies
-- **Advanced Attribution**: Implement sophisticated attribution models
-- **Custom Scenarios**: Create domain-specific configurations
-
-## 📄 License
-
-[Add your license information here]
-
-## 🆘 Support
-
-For questions and support:
-1. Check the [examples](examples/usage_examples.py) for common use cases
-2. Review the [migration guide](MIGRATION.md) if upgrading
-3. Run the test suite to verify your setup
-4. Create an issue for bugs or feature requests
 
 ---
 
-**Built with **
+**Built with ❤️**

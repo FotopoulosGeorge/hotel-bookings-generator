@@ -21,7 +21,7 @@ class SimpleBookingLogic:
     
     def generate_stay_dates(self, booking_date, customer, selected_campaign):
         """
-        SIMPLIFIED: Generate stay dates with basic logic that works reliably
+        Generate stay dates with basic logic that works reliably
         """
         # 1. Select stay length
         stay_length = self._select_stay_length()
@@ -81,7 +81,7 @@ class SimpleBookingLogic:
             return proposed_date  # Fallback
 
 
-# Simple replacement for the complex distribution system
+# Simple distribution system
 class BookingLogic:
     """Wrapper to maintain compatibility with existing code"""
     
