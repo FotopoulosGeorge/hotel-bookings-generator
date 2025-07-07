@@ -180,13 +180,13 @@ class HotelBusinessConfig:
         # 🚫 CANCELLATION & OVERBOOKING CONFIGURATION
         self.CANCELLATION_CONFIG = {
             'Early_Planner': {
-                'base_cancellation_rate': 0.20,
+                'base_cancellation_rate': 0.12,
                 'lead_time_multiplier': 1.5,
                 'min_days_before_stay': 7,
                 'cancellation_window_days': (14, 90)
             },
             'Last_Minute': {
-                'base_cancellation_rate': 0.08,
+                'base_cancellation_rate': 0.05,
                 'lead_time_multiplier': 0.5,
                 'min_days_before_stay': 1,
                 'cancellation_window_days': (1, 14)
