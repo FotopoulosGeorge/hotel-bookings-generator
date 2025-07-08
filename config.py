@@ -132,7 +132,7 @@ class HotelBusinessConfig:
         
         # 🏷️ PROMOTIONAL BUSINESS RULES
         self.TARGET_CONNECTED_AGENT_SHARE = 0.40      # 40% of bookings via agents
-        self.TARGET_ONLINE_DIRECT_SHARE = 0.40        # 40% of bookings online
+        self.TARGET_ONLINE_DIRECT_SHARE = 0.55        # 55% of bookings online
         self.CONNECTED_AGENT_PROMO_RATE = 0.70        # 70% of agent bookings promotional
         self.ONLINE_DIRECT_PROMO_RATE = 0.70          # 70% of online bookings promotional
         self.CAMPAIGN_PARTICIPATION_RATE = 0.70       # 70% participation when eligible
@@ -144,8 +144,8 @@ class HotelBusinessConfig:
                 'advance_booking_days': (30, 150),
                 'price_sensitivity': 0.8,
                 'channel_preference_weights': {
-                    'Connected_Agent': 0.65,
-                    'Online_Direct': 0.35
+                    'Connected_Agent': 0.50,
+                    'Online_Direct': 0.50
                 },
                 'loyalty_distribution': {
                     'Bronze': 0.5, 'Silver': 0.3, 'Gold': 0.2
@@ -168,8 +168,8 @@ class HotelBusinessConfig:
                 'advance_booking_days': (14, 90),
                 'price_sensitivity': 0.7,
                 'channel_preference_weights': {
-                    'Connected_Agent': 0.55,
-                    'Online_Direct': 0.45
+                    'Connected_Agent': 0.40,
+                    'Online_Direct': 0.60
                 },
                 'loyalty_distribution': {
                     'Bronze': 0.6, 'Silver': 0.25, 'Gold': 0.15

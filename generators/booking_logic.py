@@ -61,24 +61,29 @@ class SimpleBookingLogic:
         if proposed_date.month in operational_months:
             return proposed_date
         
-        # Otherwise, move to nearest operational month
-        current_year = proposed_date.year
+        weights = []
+        for i, month in enumerate(operational_months):
+            if i == 0:  # First month
+                weights.append(0.7)  # 30% reduction
+            elif i == len(operational_months) - 1:  # Last month
+                weights.append(0.8)  # 20% reduction  
+            else:  # Middle months
+                weights.append(1.0)  # Normal weight
         
-        # Find the next operational month
-        for month in operational_months:
-            try:
-                adjusted_date = datetime(current_year, month, 15)  # Mid-month
-                if adjusted_date >= proposed_date:
-                    return adjusted_date
-            except ValueError:
-                continue
+        # Normalize weights
+        total_weight = sum(weights)
+        probabilities = [w/total_weight for w in weights]
         
-        # If no month found in current year, try next year
+        # Choose month based on weights
+        chosen_month = np.random.choice(operational_months, p=probabilities)
+        
+        # Generate date in chosen month
+        year = proposed_date.year if chosen_month >= proposed_date.month else proposed_date.year + 1
+        
         try:
-            next_year_start = datetime(current_year + 1, operational_months[0], 15)
-            return next_year_start
+            return datetime(year, chosen_month, random.randint(5, 25))
         except ValueError:
-            return proposed_date  # Fallback
+            return datetime(year, chosen_month, 15)
 
 
 # Simple distribution system
