@@ -1,9 +1,25 @@
 # Hotel Booking Data Generator
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hotel-bookings-generator.streamlit.app/)
+
 A sophisticated synthetic data generation system that creates realistic hotel booking datasets with complex business logic, customer behavior patterns, and campaign attribution modeling. Perfect for data science, machine learning, and revenue management applications.
+
+## 🎯 **Try the Live Demo**
+**👉 [hotel-bookings-generator.streamlit.app](https://hotel-bookings-generator.streamlit.app/) 👈**
+
+Generate realistic hotel booking data in your browser - no coding required!
 
 ## 🚀 Quick Start
 
+### **Option 1: Web Interface (Recommended)**
+Visit the [**live web app**](https://hotel-bookings-generator.streamlit.app/) to:
+- 🎛️ Configure hotel parameters with sliders
+- 🎯 Choose from predefined scenarios (Standard/Luxury/Year-round)
+- 📊 Preview data estimates before generating
+- 📥 Download complete datasets as CSV/ZIP files
+- 📈 View instant visualizations and quality scores
+
+### **Option 2: Command Line**
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -18,19 +34,27 @@ python main.py --scenario luxury
 python main.py --list-scenarios
 ```
 
-This creates:
-- `output/historical_bookings.csv` - Main booking dataset (5K-15K records)
-- `output/campaigns_run.csv` - Campaign performance data
-- `output/customer_segments.csv` - Customer profiles
-- `output/attribution_ground_truth.csv` - ML attribution labels
+### **Option 3: Run Web Interface Locally**
+```bash
+pip install streamlit plotly
+streamlit run app.py
+```
+
+## 📊 Generated Output
+
+The system creates realistic datasets with:
+- `historical_bookings.csv` - Main booking dataset (5K-15K records)
+- `campaigns_run.csv` - Campaign performance data
+- `customer_segments.csv` - Customer profiles
+- `attribution_ground_truth.csv` - ML attribution labels
 
 ## 🎯 Available Scenarios
 
 | Scenario | Description | Key Features |
 |----------|-------------|--------------|
-| **standard** | Seasonal hotel (May-Sep) | Balanced distribution, realistic patterns |
-| **luxury** | High-end property | Premium pricing, conservative policies |
-| **year_round** | Business hotel | 12-month operations, varied demand |
+| **🏖️ Standard** | Seasonal hotel (May-Sep) | Balanced distribution, realistic patterns |
+| **✨ Luxury** | High-end property | Premium pricing, conservative policies |
+| **🏢 Year-round** | Business hotel | 12-month operations, varied demand |
 
 ## 🏗️ Architecture
 
@@ -46,9 +70,7 @@ generators/          # Core data generation logic
 └── booking_logic.py        # Stay dates & room selection
 
 processors/          # Data processing & validation
-└── data_processors.py      # Post-processing, I/O, validation
-
-examples/           # Usage examples & tutorials
+app.py              # Streamlit web interface
 utils.py           # Analysis & utility functions
 validator.py       # Comprehensive data validation
 ```
@@ -75,7 +97,14 @@ validator.py       # Comprehensive data validation
 
 ## 📈 Data Analysis & Validation
 
-### Generate Comprehensive Validation Report
+### **Web Interface**
+The [live demo](https://hotel-bookings-generator.streamlit.app/) includes:
+- ✅ Real-time data preview and estimates
+- ✅ Instant visualizations (monthly patterns, channel distribution)
+- ✅ ML readiness scoring with quality assessment
+- ✅ Interactive parameter adjustment
+
+### **Command Line Validation**
 ```bash
 python validator.py --prefix "luxury_"
 ```
@@ -85,19 +114,6 @@ Creates detailed validation suite with:
 - ✅ Business logic validation  
 - ✅ Campaign effectiveness review
 - ✅ Statistical property checks
-- ✅ ML readiness assessment
-
-### Quick Data Analysis
-```python
-from utils import load_generated_data, analyze_booking_patterns
-
-# Load and analyze data
-data = load_generated_data('luxury_')
-analysis = analyze_booking_patterns(data['bookings'])
-
-print(f"Total Revenue: ${analysis['total_revenue']:,.2f}")
-print(f"Campaign Participation: {analysis['campaign_participation_rate']:.1%}")
-```
 
 ## 🔧 Programmatic Usage
 
@@ -127,33 +143,21 @@ generator = ConfigurableHotelBookingGenerator(luxury_config)
 data = generator.generate_all_data()
 ```
 
-### Custom Scenarios
-```python
-# Create boutique hotel scenario
-config = HotelBusinessConfig()
-config.BASE_PRICES = {'Standard': 300, 'Suite': 600}
-config.CUSTOMER_SEGMENTS['Early_Planner']['market_share'] = 0.70
-config.OVERBOOKING_CONFIG['base_overbooking_rate'] = 0.03
-
-# Generate with custom prefix
-python main.py --scenario luxury --output-prefix "boutique_"
-```
-
 ## 🎓 Use Cases
 
-### Data Science & ML
+### **🤖 Data Science & ML**
 - **Predictive Modeling**: Revenue forecasting, demand prediction
 - **A/B Testing**: Campaign strategy comparison
 - **Feature Engineering**: Customer behavior analysis
 - **Model Validation**: Attribution model testing with ground truth
 
-### Revenue Management
+### **💼 Revenue Management**
 - **Pricing Strategy**: Dynamic pricing optimization
 - **Campaign Analysis**: Promotional effectiveness measurement  
 - **Capacity Management**: Overbooking strategy evaluation
 - **Customer Segmentation**: Behavior pattern analysis
 
-### Education & Training
+### **🎓 Education & Training**
 - **ML Practice**: Clean, labeled datasets for learning
 - **Business Analytics**: Realistic hospitality data
 - **Data Quality**: Validation methodology examples
@@ -200,6 +204,8 @@ numpy>=1.20.0
 matplotlib>=3.3.0
 seaborn>=0.11.0
 scipy>=1.7.0
+streamlit>=1.28.0
+plotly>=5.17.0
 python-dateutil>=2.8.0
 ```
 
@@ -211,7 +217,29 @@ python tests/test_refactoring.py
 
 Validates modular architecture and component integration.
 
+## 🤝 Contributing
+
+The modular architecture makes it easy to extend the system:
+- **New Customer Segments**: Add behavioral patterns in `customer_generator.py`
+- **Additional Campaign Types**: Extend campaign logic in `campaign_generator.py`
+- **Complex Pricing Rules**: Enhance pricing engine with new strategies
+- **Advanced Attribution**: Implement sophisticated attribution models
+- **Custom Scenarios**: Create domain-specific configurations
+
+## 📄 License
+
+This project is licensed under the MIT License 
+
+## 🆘 Support
+
+For questions and support:
+1. **Try the [live demo](https://hotel-bookings-generator.streamlit.app/)** for most use cases
+2. Check the [examples](examples/usage_examples.py) for common patterns
+3. Review the [test suite](tests/test_refactoring.py) to verify setup
+4. Create an issue for bugs or feature requests
 
 ---
+
+**🌟 [Try the Live Demo](https://hotel-bookings-generator.streamlit.app/) - Generate realistic hotel booking data in seconds!**
 
 **Built with ❤️**
