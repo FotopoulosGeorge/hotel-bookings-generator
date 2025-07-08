@@ -65,9 +65,9 @@ class HotelBusinessConfig:
         # NEW: Better distribution of stays across operational months
         self.SEASONAL_STAY_DISTRIBUTION = {
             5: 0.12,   # May - reduced from natural concentration
-            6: 0.24,   # June - slightly higher
-            7: 0.26,   # July - peak but not extreme
-            8: 0.26,   # August - still busy
+            6: 0.23,   # June - slightly higher
+            7: 0.27,   # July - peak but not extreme
+            8: 0.28,   # August - still busy
             9: 0.10    # September - tail off
         }
         
@@ -109,14 +109,14 @@ class HotelBusinessConfig:
             2: 0.60,   # February - increasing early bookings
             3: 0.75,   # March - more bookings as season approaches
             4: 0.80,   # April - final pre-season rush
-            5: 0.70,   # May - some last-minute for current season
-            6: 0.50,   # June - mostly current stays, few new bookings
-            7: 0.35,   # July - very few new bookings (mostly full)
-            8: 0.30,   # August - minimal new bookings
+            5: 0.75,   # May - some last-minute for current season
+            6: 0.60,   # June - mostly current stays, few new bookings
+            7: 0.40,   # July - very few new bookings (mostly full)
+            8: 0.40,   # August - minimal new bookings
             9: 0.40,   # September - end of season
-            10: 0.65,  # October - early birds for next year start
-            11: 0.75,  # November - early booking campaigns
-            12: 0.70   # December - holiday early bookings
+            10: 0.40,  # October - early birds for next year start
+            11: 0.35,  # November - early booking campaigns
+            12: 0.35   # December - holiday early bookings
         }
         
         # 📅 WEEKLY DEMAND PATTERNS (Monday=0, Sunday=6)

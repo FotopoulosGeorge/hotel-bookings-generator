@@ -20,6 +20,9 @@ def create_test_scenarios():
     year_round_config = HotelBusinessConfig()
     year_round_config.OPERATION_MODE = 'year_round'
     year_round_config.OPERATIONAL_MONTHS = list(range(1, 13))  # All months
+    year_round_config.CUSTOMER_SEGMENTS['Early_Planner']['advance_booking_days'] = (30, 365)  # Full year ahead
+    year_round_config.CUSTOMER_SEGMENTS['Flexible']['advance_booking_days'] = (14, 180)       # 6 months ahead  
+    year_round_config.CUSTOMER_SEGMENTS['Last_Minute']['advance_booking_days'] = (1, 45)      # Slightly longer
     
     # Adjust demand patterns for year-round operations
     year_round_config.SEASONAL_DEMAND_MULTIPLIERS = {
@@ -36,6 +39,40 @@ def create_test_scenarios():
         11: 0.75,  # November - pre-holiday low
         12: 0.95   # December - holiday season
     }
+        # Add to year_round scenario
+    year_round_config.CAMPAIGN_TYPES = {
+        'Early_Booking': {
+            'campaign_months': list(range(1, 13)),  # All months
+            'campaigns_per_month': 1,
+            'duration_range': (14, 30),
+            'discount_range': (0.15, 0.30),
+            'target_segments': ['Early_Planner', 'Flexible'],
+            'preferred_channel': 'Connected_Agent',
+            'advance_booking_requirement': 30,
+            'capacity_range': (100, 300),
+            'influence_period_days': 90  # Shorter influence for year-round
+        },
+        'Flash_Sale': {
+            'campaigns_per_month': (1, 3),  # Reduced frequency
+            'duration_range': (3, 7),
+            'discount_range': (0.10, 0.25),
+            'target_segments': ['Last_Minute', 'Flexible'],
+            'preferred_channel': 'Mixed',
+            'advance_booking_requirement': 0,
+            'capacity_range': (50, 150)
+        },
+        'Special_Offer': {  # New campaign type for year-round
+            'target_months': list(range(1, 13)),
+            'campaigns_per_month': 1,
+            'duration_range': (7, 14),
+            'discount_range': (0.12, 0.22),
+            'target_segments': ['Flexible'],
+            'preferred_channel': 'Mixed',
+            'advance_booking_requirement': 14,
+            'capacity_range': (75, 200)
+        }
+    }
+        
     
     # Year-round pricing adjustments
     year_round_config.DATA_CONFIG['seasonal_pricing_multipliers'] = {
