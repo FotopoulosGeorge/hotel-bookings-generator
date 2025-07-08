@@ -478,7 +478,7 @@ def generate_and_download(config, output_prefix):
         
         
         
-        st.subheader("📅 Bookings by Month")
+        st.subheader("📅 Stays by Month")
         # Monthly booking pattern
         df_bookings['stay_month'] = pd.to_datetime(df_bookings['stay_start_date']).dt.month
         monthly_counts = df_bookings['stay_month'].value_counts().sort_index()
@@ -490,13 +490,30 @@ def generate_and_download(config, output_prefix):
         fig1 = px.bar(
             x=months,
             y=monthly_data,
-            title="📅 Bookings by Month",
+            title="📅 Stays by Month",
             color=monthly_data,
             color_continuous_scale="Blues"
         )
         fig1.update_layout(showlegend=False)
         st.plotly_chart(fig1, use_container_width=True)
         
+        st.subheader("📅 Bookings by Month")
+        # Booking month pattern (when reservations were made)
+        df_bookings['booking_month'] = pd.to_datetime(df_bookings['booking_date']).dt.month
+        booking_monthly_counts = df_bookings['booking_month'].value_counts().sort_index()
+
+        booking_monthly_data = [booking_monthly_counts.get(i, 0) for i in range(1, 13)]
+
+        fig_booking = px.bar(
+            x=months,
+            y=booking_monthly_data,
+            title="📅 Reservations Made by Month",
+            color=booking_monthly_data,
+            color_continuous_scale="Greens"
+        )
+        fig_booking.update_layout(showlegend=False, height=400)
+        st.plotly_chart(fig_booking, use_container_width=True)
+
         st.subheader("🏢 Booking Channels")
         # Channel distribution
         channel_counts = df_bookings['booking_channel'].value_counts()

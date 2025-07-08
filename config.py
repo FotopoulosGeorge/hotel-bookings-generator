@@ -64,10 +64,10 @@ class HotelBusinessConfig:
         
         # NEW: Better distribution of stays across operational months
         self.SEASONAL_STAY_DISTRIBUTION = {
-            5: 0.18,   # May - reduced from natural concentration
-            6: 0.22,   # June - slightly higher
+            5: 0.12,   # May - reduced from natural concentration
+            6: 0.24,   # June - slightly higher
             7: 0.26,   # July - peak but not extreme
-            8: 0.24,   # August - still busy
+            8: 0.26,   # August - still busy
             9: 0.10    # September - tail off
         }
         
@@ -108,7 +108,7 @@ class HotelBusinessConfig:
             1: 0.50,   # January - early bird bookings for summer
             2: 0.60,   # February - increasing early bookings
             3: 0.75,   # March - more bookings as season approaches
-            4: 0.90,   # April - final pre-season rush
+            4: 0.80,   # April - final pre-season rush
             5: 0.70,   # May - some last-minute for current season
             6: 0.50,   # June - mostly current stays, few new bookings
             7: 0.35,   # July - very few new bookings (mostly full)
@@ -131,21 +131,21 @@ class HotelBusinessConfig:
         }
         
         # 🏷️ PROMOTIONAL BUSINESS RULES
-        self.TARGET_CONNECTED_AGENT_SHARE = 0.60      # 60% of bookings via agents
+        self.TARGET_CONNECTED_AGENT_SHARE = 0.40      # 40% of bookings via agents
         self.TARGET_ONLINE_DIRECT_SHARE = 0.40        # 40% of bookings online
-        self.CONNECTED_AGENT_PROMO_RATE = 0.80        # 80% of agent bookings promotional
+        self.CONNECTED_AGENT_PROMO_RATE = 0.70        # 70% of agent bookings promotional
         self.ONLINE_DIRECT_PROMO_RATE = 0.70          # 70% of online bookings promotional
-        self.CAMPAIGN_PARTICIPATION_RATE = 0.80       # 80% participation when eligible
+        self.CAMPAIGN_PARTICIPATION_RATE = 0.70       # 70% participation when eligible
         
         # 👥 CUSTOMER SEGMENT DEFINITIONS
         self.CUSTOMER_SEGMENTS = {
             'Early_Planner': {
-                'market_share': 0.45,
+                'market_share': 0.35,
                 'advance_booking_days': (30, 150),
                 'price_sensitivity': 0.8,
                 'channel_preference_weights': {
-                    'Connected_Agent': 0.85,
-                    'Online_Direct': 0.15
+                    'Connected_Agent': 0.65,
+                    'Online_Direct': 0.35
                 },
                 'loyalty_distribution': {
                     'Bronze': 0.5, 'Silver': 0.3, 'Gold': 0.2
